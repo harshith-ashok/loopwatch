@@ -1,0 +1,28 @@
+# Action catalog. The executor runs only these; agents may only propose these (hard rule 2).
+# Phase 5 reads it for validation and proposal metadata; the policy engine builds on it in Phase 6.
+actions:
+  retry_operation:
+    risk: low
+    mode: auto
+    targets: [order-worker, payments-gateway]
+    rollback: "None needed: the retry is idempotent."
+  open_ticket:
+    risk: low
+    mode: auto
+    targets: [ops-queue]
+    rollback: "Close the ticket with a note."
+  switch_endpoint:
+    risk: medium
+    mode: auto
+    targets: [payments-gateway, hub-ack]
+    rollback: "Switch back to the primary route after its health check passes."
+  restart_service:
+    risk: medium
+    mode: auto
+    targets: [order-worker]
+    rollback: "Redeploy the previous revision."
+  power_cycle_device:
+    risk: high
+    mode: approval
+    targets: [fulfillment-hub-01]
+    rollback: "Restore the previous device profile and route acknowledgements to the manual queue."
