@@ -1,0 +1,82 @@
+@import "tailwindcss";
+
+/* Design tokens. Light by default, dark via prefers-color-scheme. */
+:root {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --surface-2: #eef0f4;
+  --border: #d9dde5;
+  --text: #14171f;
+  --muted: #5b6475;
+  --accent: #3a5bd9;
+  --ok: #1a7f4b;
+  --ok-bg: #dff4e8;
+  --warn: #9a6200;
+  --warn-bg: #fdf0d2;
+  --crit: #b3261e;
+  --crit-bg: #fbe0dd;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0e1118;
+    --surface: #161a23;
+    --surface-2: #1e2430;
+    --border: #2b3242;
+    --text: #e6e9f0;
+    --muted: #9aa3b5;
+    --accent: #7c97ff;
+    --ok: #4cc38a;
+    --ok-bg: #12301f;
+    --warn: #e5b24a;
+    --warn-bg: #352a10;
+    --crit: #ff7b72;
+    --crit-bg: #3a1814;
+  }
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-ok: var(--ok);
+  --color-ok-bg: var(--ok-bg);
+  --color-warn: var(--warn);
+  --color-warn-bg: var(--warn-bg);
+  --color-crit: var(--crit);
+  --color-crit-bg: var(--crit-bg);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
