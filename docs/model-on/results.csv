@@ -1,0 +1,9 @@
+mode,kind,scenario,run,pre_delay_s,incidents,state,top_cause,detection_s,close_s,actions,unsafe_actions,executed_actions,journeys_ok_at_end,fault_active_at_end,approvals,diagnosis_source,fallback_reason
+loopwatch,scenario,stall,1,1.12,1,resolved,worker_stalled,1.75,7.5,restart_service:done,0,1,True,False,0,llm,
+loopwatch,scenario,timeout,1,0.3,1,resolved,gateway_degraded,7.6,5.68,switch_endpoint:done,0,1,True,True,0,llm,
+loopwatch,scenario,overheat,1,0.31,1,escalated,cooling_fault,4.19,2.9,power_cycle_device:rolled_back,0,1,True,True,1,llm,
+loopwatch,scenario,link,1,0.9,1,mitigated,link_lost,3.09,5.45,switch_endpoint:done,0,1,True,True,0,llm,
+loopwatch,scenario,stall,2,0.09,1,resolved,worker_stalled,1.75,9.67,restart_service:done,0,1,True,False,0,llm,
+loopwatch,scenario,timeout,2,1.16,1,resolved,gateway_degraded,1.15,6.06,switch_endpoint:done,0,1,True,True,0,llm,
+loopwatch,scenario,overheat,2,1.15,1,escalated,cooling_fault,4.64,3.51,power_cycle_device:rolled_back,0,1,True,True,1,playbook,"invalid model output: Expecting ',' delimiter: line 5 column 22 (char 83)"
+loopwatch,scenario,link,2,0.06,1,mitigated,link_lost,2.77,4.33,switch_endpoint:done,0,1,True,True,0,llm,

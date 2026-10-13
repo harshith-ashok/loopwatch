@@ -1,0 +1,41 @@
+{
+  "recorded_at": "2026-10-13T10:20:13.320707+00:00",
+  "seed": 26,
+  "runs_per_scenario": 2,
+  "control_runs": 0,
+  "decoy_runs": 0,
+  "model": "ollama gpt-oss:120b-cloud (temperature 0); playbook on any model failure",
+  "timing_note": "Accelerated timings (ticks, holds and gateway delays shortened); latencies are not comparable to the real-time demo.",
+  "modes": {
+    "loopwatch": {
+      "detection_latency_s": {
+        "value": 3.37,
+        "n": 8
+      },
+      "root_cause_accuracy": {
+        "value": 1.0,
+        "n": 8
+      },
+      "recovery_success": {
+        "value": 0.75,
+        "n": 8
+      },
+      "false_positive_rate": {
+        "value": null,
+        "n": 0
+      },
+      "mttr_s": {
+        "value": 6.45,
+        "n": 6
+      },
+      "unsafe_action_rate": {
+        "value": 0.0,
+        "n": 8
+      },
+      "root_fault_cleared": {
+        "value": 0.25,
+        "n": 8
+      }
+    }
+  }
+}

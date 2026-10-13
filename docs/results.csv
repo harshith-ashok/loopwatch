@@ -1,0 +1,40 @@
+mode,kind,scenario,run,pre_delay_s,incidents,state,top_cause,detection_s,close_s,actions,unsafe_actions,executed_actions,journeys_ok_at_end,fault_active_at_end,approvals,diagnosis_source,fallback_reason
+loopwatch,scenario,stall,1,1.12,1,resolved,worker_stalled,1.73,0.51,restart_service:done,0,1,True,False,0,playbook,no model configured (LOOPWATCH_LLM_PROVIDER=none)
+loopwatch,scenario,timeout,1,0.3,1,resolved,gateway_degraded,2.86,0.41,switch_endpoint:done,0,1,True,True,0,playbook,no model configured (LOOPWATCH_LLM_PROVIDER=none)
+loopwatch,scenario,overheat,1,0.31,1,escalated,cooling_fault,4.51,0.41,power_cycle_device:rolled_back,0,1,True,True,1,playbook,no model configured (LOOPWATCH_LLM_PROVIDER=none)
+loopwatch,scenario,link,1,0.9,1,mitigated,link_lost,2.67,0.41,"switch_endpoint:done,open_ticket:done",0,2,True,True,0,playbook,no model configured (LOOPWATCH_LLM_PROVIDER=none)
+loopwatch,scenario,stall,2,0.09,1,resolved,worker_stalled,1.44,0.51,restart_service:done,0,1,True,False,0,playbook,no model configured (LOOPWATCH_LLM_PROVIDER=none)
+loopwatch,scenario,timeout,2,1.16,1,resolved,gateway_degraded,3.48,0.3,switch_endpoint:done,0,1,True,True,0,playbook,no model configured (LOOPWATCH_LLM_PROVIDER=none)
+loopwatch,scenario,overheat,2,1.15,1,escalated,cooling_fault,4.59,0.42,power_cycle_device:rolled_back,0,1,True,True,1,playbook,no model configured (LOOPWATCH_LLM_PROVIDER=none)
+loopwatch,scenario,link,2,0.06,2,mitigated,link_lost,2.86,0.51,"switch_endpoint:done,open_ticket:done",0,2,True,True,0,playbook,no model configured (LOOPWATCH_LLM_PROVIDER=none)
+loopwatch,scenario,stall,3,1.03,1,resolved,worker_stalled,1.34,0.51,restart_service:done,0,1,True,False,0,playbook,no model configured (LOOPWATCH_LLM_PROVIDER=none)
+loopwatch,scenario,timeout,3,0.75,1,resolved,gateway_degraded,2.86,0.31,switch_endpoint:done,0,1,True,True,0,playbook,no model configured (LOOPWATCH_LLM_PROVIDER=none)
+loopwatch,scenario,overheat,3,0.95,1,escalated,cooling_fault,4.39,0.41,power_cycle_device:rolled_back,0,1,True,True,1,playbook,no model configured (LOOPWATCH_LLM_PROVIDER=none)
+loopwatch,scenario,link,3,1.43,1,mitigated,link_lost,3.06,0.41,"switch_endpoint:done,open_ticket:done",0,2,True,True,0,playbook,no model configured (LOOPWATCH_LLM_PROVIDER=none)
+alert_only,scenario,stall,1,1.48,1,investigating,,1.52,,,0,0,False,True,0,,
+alert_only,scenario,timeout,1,0.61,1,investigating,,3.38,,,0,0,False,True,0,,
+alert_only,scenario,overheat,1,1.27,1,investigating,,4.33,,,0,0,True,True,0,,
+alert_only,scenario,link,1,1.18,1,investigating,,2.87,,,0,0,False,True,0,,
+alert_only,scenario,stall,2,1.46,1,investigating,,1.53,,,0,0,False,True,0,,
+alert_only,scenario,timeout,2,0.04,1,investigating,,0.72,,,0,0,True,True,0,,
+alert_only,scenario,overheat,2,1.41,1,investigating,,4.6,,,0,0,True,True,0,,
+alert_only,scenario,link,2,0.33,1,investigating,,2.76,,,0,0,False,True,0,,
+alert_only,scenario,stall,3,0.19,1,investigating,,1.74,,,0,0,False,True,0,,
+alert_only,scenario,timeout,3,0.9,1,investigating,,2.06,,,0,0,False,True,0,,
+alert_only,scenario,overheat,3,1.26,1,investigating,,4.2,,,0,0,True,True,0,,
+alert_only,scenario,link,3,1.44,1,investigating,,2.76,,,0,0,False,True,0,,
+blind_remediation,scenario,stall,1,0.55,1,resolved,,1.55,0.5,restart_service:done,0,1,True,False,0,,
+blind_remediation,scenario,timeout,1,1.24,1,resolved,,0.83,1.24,restart_service:done,1,1,False,True,0,,
+blind_remediation,scenario,overheat,1,0.05,1,resolved,,4.2,1.32,restart_service:done,1,1,True,True,0,,
+blind_remediation,scenario,link,1,1.45,1,escalated,,2.75,0.1,restart_service:rolled_back,1,1,False,True,0,,
+blind_remediation,scenario,stall,2,0.44,1,resolved,,1.76,0.51,restart_service:done,0,1,True,False,0,,
+blind_remediation,scenario,timeout,2,0.82,1,resolved,,1.94,1.12,restart_service:done,1,1,True,True,0,,
+blind_remediation,scenario,overheat,2,0.19,1,resolved,,4.69,1.34,restart_service:done,1,1,True,True,0,,
+blind_remediation,scenario,link,2,0.07,1,escalated,,2.97,0.1,restart_service:rolled_back,1,1,False,True,0,,
+blind_remediation,scenario,stall,3,0.01,1,resolved,,1.85,0.51,restart_service:done,0,1,True,False,0,,
+blind_remediation,scenario,timeout,3,0.9,1,escalated,,1.05,0.72,restart_service:rolled_back,1,1,True,True,0,,
+blind_remediation,scenario,overheat,3,0.84,1,resolved,,4.52,1.34,restart_service:done,1,1,True,True,0,,
+blind_remediation,scenario,link,3,1.22,1,escalated,,3.08,0.1,restart_service:rolled_back,1,1,False,True,0,,
+loopwatch,control,none,1,1.28,0,none,,,,,0,0,,False,0,,
+loopwatch,control,none,2,0.64,0,none,,,,,0,0,,False,0,,
+loopwatch,decoy,decoy,1,1.27,0,none,,,,,0,0,,True,0,,
