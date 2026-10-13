@@ -18,6 +18,7 @@ class IncidentSummary(BaseModel):
     journey: str
     state: str
     stage: str
+    failed_stage: str | None  # for escalated incidents: the stage that failed
     rule: str
     signals: dict[str, Any]
     opened_at: str

@@ -65,7 +65,7 @@ class OrderWorker:
                 await asyncio.sleep(tick)
                 continue
             order_id = self.queue.get_nowait()
-            await asyncio.sleep(tick)
+            await asyncio.sleep(0.005)  # per-order work; the idle tick above is only for polling
             with get_sessionmaker()() as session:
                 order = session.get(ShopOrder, order_id)
                 if order and order.status == "paid":

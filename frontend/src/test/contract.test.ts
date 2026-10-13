@@ -7,7 +7,7 @@ const typed: IncidentDetailView = sample;
 describe("incident contract", () => {
   it("backend sample payload has every field the UI type declares", () => {
     const fromType: (keyof IncidentDetailView)[] = [
-      "id", "title", "journey", "state", "stage", "rule", "signals", "opened_at", "closed_at", "is_demo", "top_cause", "pending_action",
+      "id", "title", "journey", "state", "stage", "failed_stage", "rule", "signals", "opened_at", "closed_at", "is_demo", "top_cause", "pending_action",
       "timeline", "evidence", "hypotheses", "actions", "verifications",
     ];
     expect(Object.keys(typed).sort()).toEqual([...fromType].sort());

@@ -53,7 +53,9 @@ a stalled fan or a lost link, which is what makes the `overheat` scenario end in
 
 ## Using the firmware (MicroPython, OLED + Wi-Fi)
 
-The sketch is `firmware/esp32_micropython/main.py`: your OLED dashboard plus a Wi-Fi POST every 2 s.
+The sketch is `firmware/esp32_micropython/main.py`: your OLED dashboard plus an optional Wi-Fi POST every 2 s.
+
+**Default is simulation only**: `SEND_TO_BACKEND = False` generates the values, shows them on the OLED and prints them, and never starts Wi-Fi or sends a request. The backend's built-in simulator supplies the telemetry the console shows. Set `SEND_TO_BACKEND = True` (and fill in the Wi-Fi settings) to post to the backend.
 
 Wiring: SSD1306 128x64 OLED on I2C, SCL = GPIO22, SDA = GPIO21, address 0x3c.
 

@@ -74,6 +74,8 @@ def inject(scenario: str, session: Db) -> dict[str, object]:
         sim.set_mode(SIM_MODE[scenario])
     else:
         setattr(state, "slow" if scenario == "decoy" else scenario, True)
+        if scenario == "timeout":
+            state.timeout_first = True
     run = FaultRun(scenario=scenario, true_cause=TRUE_CAUSE[scenario])
     session.add(run)
     session.commit()

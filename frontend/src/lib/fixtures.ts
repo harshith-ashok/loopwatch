@@ -8,6 +8,7 @@ export const FIXTURE_DETAIL: IncidentDetailView = {
   journey: "order",
   state: "awaiting_approval",
   stage: "decide",
+  failed_stage: null,
   rule: "step_failure",
   signals: { count: 4, rules_seen: ["step_failure", "state_check"] },
   opened_at: "2026-10-13T06:30:00+00:00",

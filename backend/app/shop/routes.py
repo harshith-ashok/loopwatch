@@ -121,7 +121,9 @@ async def _charge(gateway: str, body: ChargeIn, session: Session) -> dict[str, o
     if gateway == "primary" and state.slow and not degraded:
         latency = cfg.shop_payment_slow_ms
     elif degraded:
-        if _rng.random() < cfg.shop_timeout_error_rate:
+        forced = state.timeout_first
+        state.timeout_first = False
+        if forced or _rng.random() < cfg.shop_timeout_error_rate:
             latency, failed = cfg.shop_payment_timeout_ms, True
         else:
             latency = cfg.shop_payment_slow_ms

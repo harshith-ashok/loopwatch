@@ -36,6 +36,7 @@ export interface IncidentView {
   journey: string;
   state: string;
   stage: string;
+  failed_stage: string | null;
   rule: string;
   signals: Record<string, unknown>;
   opened_at: string;

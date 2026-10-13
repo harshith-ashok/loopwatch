@@ -4,6 +4,7 @@
   "journey": "order",
   "state": "awaiting_approval",
   "stage": "decide",
+  "failed_stage": null,
   "rule": "step_failure",
   "signals": {"count": 3, "first_summary": "x", "rules_seen": ["step_failure"]},
   "opened_at": "2026-10-13T06:30:00+00:00",

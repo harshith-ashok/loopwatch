@@ -17,11 +17,11 @@ describe("ApprovalCard", () => {
         />
       </QueryClientProvider>,
     );
-    expect(screen.getByText("power_cycle_device")).toBeInTheDocument();
-    expect(screen.getByText("Restore the previous profile")).toBeInTheDocument();
-    expect(screen.getByText("cooling fault")).toBeInTheDocument();
+    expect(screen.getByText(/Approval needed: Power-cycle edge device/)).toBeInTheDocument();
+    expect(screen.getByText(/Restore the previous profile/)).toBeInTheDocument();
+    expect(screen.getByText(/Cooling fault on the edge node/)).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: "Approve" }));
+    await userEvent.click(screen.getByRole("button", { name: "Approve and run" }));
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe("/api/v1/incidents/7/approve");
     expect(JSON.parse(init.body as string)).toEqual({ operator: "operator" });

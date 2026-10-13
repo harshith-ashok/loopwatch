@@ -6,9 +6,10 @@ The wire format is the Loopwatch telemetry schema (backend/app/schemas/edge.py).
 
 Every 2 s it:
   1. builds one telemetry message
-  2. shows it on the SSD1306 OLED (I2C, SCL=GPIO22, SDA=GPIO21, addr 0x3c)
-  3. POSTs it to <BACKEND_URL>/api/v1/edge/telemetry
-  4. reboots if the reply lists the known command "power_cycle"
+  2. shows it on the SSD1306 OLED (I2C, SCL=GPIO22, SDA=GPIO21, addr 0x3c) and prints it
+  3. only if SEND_TO_BACKEND is True: POSTs it to <BACKEND_URL>/api/v1/edge/telemetry
+  4. only then: reboots if the reply lists the known command "power_cycle"
+By default (SEND_TO_BACKEND = False) it is a pure simulation and sends nothing.
 
 Single file: edit the SETTINGS block below, copy this file to the board as main.py.
 Needs the `ssd1306` driver on the board:  import mip; mip.install("ssd1306")
@@ -26,6 +27,10 @@ except ImportError:  # pragma: no cover - newer builds ship `requests`
     import requests
 
 # ---- SETTINGS (edit these) ---------------------------------------------------------------------
+# False: simulate only. Values are generated and shown on the OLED/serial, Wi-Fi is never started
+# and no request is sent to the backend (the backend's own simulator supplies the telemetry).
+# True: also POST every message to BACKEND_URL (needs the Wi-Fi settings below).
+SEND_TO_BACKEND = False
 WIFI_SSID = "your-wifi"
 WIFI_PASS = "your-password"
 BACKEND_URL = "http://192.168.1.50:8000"  # the computer running uvicorn (LAN IP, not localhost)
@@ -161,33 +166,39 @@ def send(message):
 
 
 def run():
-    import machine
-    import network
-
     oled = init_display()
-    wlan = network.WLAN(network.STA_IF)
-    wlan.active(True)
+    print("Edge node {} starting ({}). Ctrl+C to stop.".format(
+        NODE_NAME, "sending to backend" if SEND_TO_BACKEND else "simulation only, nothing is sent"))
+    wlan = machine = None
+    if SEND_TO_BACKEND:
+        import machine  # noqa: F811 - only needed for the reboot command
+        import network
+
+        wlan = network.WLAN(network.STA_IF)
+        wlan.active(True)
     last_try = 0
-    net = "connecting"
-    print("Edge node {} starting. Ctrl+C to stop.".format(NODE_NAME))
+    net = "connecting" if SEND_TO_BACKEND else "sim only"
     try:
         while True:
-            if not wlan.isconnected() and time.time() - last_try >= WIFI_RETRY_S:
-                last_try = time.time()
-                net = "wifi..." if not connect_wifi(wlan) else "wifi ok"
             msg = build_message(wlan)
-            if wlan.isconnected():
-                try:
-                    status, commands = send(msg)
-                    net = "OK" if status == 200 else "HTTP {}".format(status)
-                    if "power_cycle" in commands:
-                        show(oled, msg, "rebooting")
-                        time.sleep(0.5)
-                        machine.reset()
-                except OSError:
-                    net = "backend down"  # keep looping; it may come back
+            if not SEND_TO_BACKEND:
+                print(json.dumps(msg))
             else:
-                net = "no wifi"
+                if not wlan.isconnected() and time.time() - last_try >= WIFI_RETRY_S:
+                    last_try = time.time()
+                    net = "wifi ok" if connect_wifi(wlan) else "wifi..."
+                if wlan.isconnected():
+                    try:
+                        status, commands = send(msg)
+                        net = "OK" if status == 200 else "HTTP {}".format(status)
+                        if "power_cycle" in commands:
+                            show(oled, msg, "rebooting")
+                            time.sleep(0.5)
+                            machine.reset()
+                    except OSError:
+                        net = "backend down"  # keep looping; it may come back
+                else:
+                    net = "no wifi"
             show(oled, msg, net)
             time.sleep(SEND_INTERVAL_S)
     except KeyboardInterrupt:

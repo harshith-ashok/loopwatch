@@ -1,0 +1,827 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Loopwatch</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a left rail of pages (as in SAGE) and one panel per signal source (as in PersonaLens).
+   Incidents read as a five-stage loop: detect, investigate, decide, act, verify. */
+:root{
+  --bg:#EDEFF3; --surface:#FFFFFF; --surface-2:#F5F6F9; --line:#DADEE6; --line-strong:#C3C9D4;
+  --fg:#141A24; --muted:#586376; --faint:#8791A3;
+  --accent:#3552D6; --accent-soft:#E3E8FB; --accent-fg:#FFFFFF;
+  --ok:#0F6F4A; --ok-soft:#DDF3E9; --warn:#8A5600; --warn-soft:#FBEBC8; --crit:#C63540; --crit-soft:#FADDDF;
+  --font-ui:'Instrument Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --font-mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0A0E15; --surface:#101723; --surface-2:#16202F; --line:#223046; --line-strong:#304059;
+    --fg:#E5E9F1; --muted:#93A0B5; --faint:#66748B;
+    --accent:#8AA2FF; --accent-soft:#1C2748; --accent-fg:#0A0E15;
+    --ok:#4BD6A0; --ok-soft:#0F2E26; --warn:#F0B85A; --warn-soft:#33260E; --crit:#FF7B82; --crit-soft:#371A1E;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0A0E15; --surface:#101723; --surface-2:#16202F; --line:#223046; --line-strong:#304059;
+  --fg:#E5E9F1; --muted:#93A0B5; --faint:#66748B;
+  --accent:#8AA2FF; --accent-soft:#1C2748; --accent-fg:#0A0E15;
+  --ok:#4BD6A0; --ok-soft:#0F2E26; --warn:#F0B85A; --warn-soft:#33260E; --crit:#FF7B82; --crit-soft:#371A1E;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:14px/1.45 var(--font-ui);-webkit-font-smoothing:antialiased}
+button,select,input{font:inherit;color:inherit}
+button{cursor:pointer}
+button:disabled{cursor:not-allowed;opacity:.5}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+h1,h2,h3,p,ul,ol,dl,dd,pre{margin:0}
+h1{font-size:22px;font-weight:600;letter-spacing:-.01em;text-wrap:balance}
+h2{font-size:14px;font-weight:600}
+h3{font-size:13px;font-weight:600;margin-top:14px}
+.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)} .small{font-size:12.5px} .nowrap{white-space:nowrap}
+.app{display:grid;grid-template-columns:228px minmax(0,1fr);min-height:100vh}
+.rail{position:sticky;top:env(safe-area-inset-top,0px);height:100vh;align-self:start;display:flex;flex-direction:column;gap:22px;padding:18px 14px;border-right:1px solid var(--line);background:var(--surface)}
+.brand{display:flex;align-items:center;gap:9px;font-weight:600;font-size:16px;letter-spacing:-.01em;color:var(--fg);padding:0 6px}
+.brand svg{color:var(--accent)}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav button{display:flex;align-items:center;gap:10px;padding:8px 10px;border:0;border-radius:8px;background:none;color:var(--muted);text-align:left;font-weight:500}
+.nav button:hover{background:var(--surface-2);color:var(--fg)}
+.nav button.on{background:var(--accent-soft);color:var(--accent)}
+.count{margin-left:auto;background:var(--crit);color:#fff;border-radius:999px;font-size:11.5px;font-weight:600;padding:0 7px;min-width:20px;text-align:center}
+.rail-foot{margin-top:auto;display:flex;flex-direction:column;gap:8px;padding:0 6px}
+.hint{color:var(--muted);font-size:12.5px;text-wrap:pretty}
+.main{padding:22px clamp(16px,3vw,32px) 56px;min-width:0}
+.view{display:flex;flex-direction:column;gap:16px;max-width:1200px}
+.head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.sub{color:var(--muted);margin-top:4px;max-width:62ch}
+.grid{display:grid;gap:16px}
+.cols-2{grid-template-columns:repeat(auto-fit,minmax(min(100%,360px),1fr))}
+.kpis{grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr))}
+.stack{display:flex;flex-direction:column;gap:16px;min-width:0}
+.card,.kpi{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;min-width:0}
+.card-h{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px}
+.kpi{display:flex;flex-direction:column;gap:2px;padding:14px 16px}
+.kpi .k{color:var(--muted);font-size:12.5px}
+.kpi .v{font-size:26px;font-weight:500;line-height:1.25}
+.kpi .v small{font-size:14px;color:var(--faint);margin-left:2px}
+.kpi .s{color:var(--muted);font-size:12.5px}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:500;background:var(--surface-2);color:var(--muted);border:1px solid var(--line);white-space:nowrap}
+.pill.ok{background:var(--ok-soft);color:var(--ok);border-color:transparent}
+.pill.warn{background:var(--warn-soft);color:var(--warn);border-color:transparent}
+.pill.crit{background:var(--crit-soft);color:var(--crit);border-color:transparent}
+.pill.acc{background:var(--accent-soft);color:var(--accent);border-color:transparent}
+.dot{width:7px;height:7px;border-radius:50%;background:currentColor;display:inline-block}
+.pills{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+button.pill{cursor:pointer}
+.btn{display:inline-flex;align-items:center;gap:7px;padding:7px 12px;border:1px solid var(--line-strong);background:var(--surface);border-radius:8px;font-weight:500}
+.btn:hover:not(:disabled){background:var(--surface-2)}
+.btn.primary{background:var(--accent);color:var(--accent-fg);border-color:transparent}
+.btn.primary:hover:not(:disabled){background:var(--accent);filter:brightness(1.08)}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+.link{background:none;border:0;padding:0;color:var(--accent);text-decoration:underline;text-underline-offset:2px}
+.empty{color:var(--muted)}
+.rows{list-style:none;padding:0}
+.rows li{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;gap:12px;align-items:center;padding:10px 0;border-top:1px solid var(--line)}
+.rows li:first-child{border-top:0;padding-top:0}
+.rows .nm{display:flex;flex-direction:column;min-width:0}
+.rows .nm span{color:var(--muted);font-size:12.5px}
+.spark .sl{fill:none;stroke:var(--c);stroke-width:1.5;stroke-linejoin:round}
+.spark .sa{fill:var(--c);opacity:.12}
+.spark .sd{fill:var(--c)}
+.spark.acc{--c:var(--accent)} .spark.ok{--c:var(--ok)} .spark.warn{--c:var(--warn)} .spark.crit{--c:var(--crit)}
+.steps{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;list-style:none;padding:0;margin:14px 0 4px}
+.steps i{display:block;height:4px;border-radius:2px;background:var(--line)}
+.steps span{display:block;margin-top:6px;font-size:12px;color:var(--muted)}
+.steps .done i{background:var(--ok)}
+.steps .active i{background:var(--accent);animation:pulse 1.4s ease-in-out infinite}
+.steps .wait i{background:var(--warn);animation:pulse 1.4s ease-in-out infinite}
+.steps .fail i{background:var(--crit)}
+.steps .active span,.steps .wait span,.steps .fail span{color:var(--fg);font-weight:500}
+@keyframes pulse{50%{opacity:.45}}
+@media (prefers-reduced-motion:reduce){.steps i{animation:none!important}.toast{animation:none!important}}
+.now{color:var(--muted);margin-top:8px;text-wrap:pretty}
+.inc-t{margin:0 0 8px;font-weight:500}
+.inj{display:grid;gap:8px}
+.inj-btn{display:flex;align-items:center;gap:12px;text-align:left;padding:10px 12px;border:1px solid var(--line-strong);border-radius:8px;background:var(--surface)}
+.inj-btn:hover:not(:disabled){background:var(--surface-2)}
+.inj-btn strong{display:block;font-weight:500}
+.inj-btn small{display:block;color:var(--muted);font-size:12.5px}
+.inj-btn svg{flex:none;color:var(--accent)}
+.inj-foot{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-top:12px}
+.inj-foot label{display:flex;align-items:center;gap:8px;color:var(--muted)}
+select,.num-in{background:var(--surface);border:1px solid var(--line-strong);border-radius:8px;padding:6px 8px}
+.num-in{width:72px}
+.feed{list-style:none;padding:0;max-height:340px;overflow:auto}
+.feed li{display:grid;grid-template-columns:62px 76px minmax(0,1fr);gap:10px;padding:7px 0;border-top:1px solid var(--line);align-items:baseline}
+.feed li:first-child{border-top:0}
+.t{color:var(--muted);font-size:12.5px}
+.tag{font-size:12px;font-weight:500;color:var(--muted)}
+.tag.ok{color:var(--ok)} .tag.warn,.tag.human{color:var(--warn)} .tag.crit{color:var(--crit)} .tag.agent{color:var(--accent)}
+.split{display:grid;grid-template-columns:300px minmax(0,1fr);gap:16px;align-items:start}
+.list{display:flex;flex-direction:column;gap:2px;padding:8px}
+.li{display:flex;flex-direction:column;gap:5px;text-align:left;padding:10px;border:0;border-radius:8px;background:none}
+.li:hover{background:var(--surface-2)}
+.li.on{background:var(--accent-soft)}
+.li strong{font-weight:500}
+.detail{display:flex;flex-direction:column;gap:16px;min-width:0}
+.inc-h{font-size:19px;font-weight:600;margin:8px 0 12px;text-wrap:balance}
+.meta{display:flex;flex-wrap:wrap;gap:8px 28px}
+.meta dt{color:var(--muted);font-size:12.5px}
+.meta dd{margin:0;font-weight:500}
+.signals{margin:12px 0 0;padding-left:18px;color:var(--muted)}
+.approve{border:1px solid var(--warn);background:var(--warn-soft);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.approve-h{display:flex;flex-wrap:wrap;align-items:center;gap:10px;color:var(--warn)}
+.approve p{color:var(--fg)}
+.tl{list-style:none;padding:0}
+.tl li{display:grid;grid-template-columns:50px 10px minmax(0,1fr);gap:10px;padding:6px 0;align-items:baseline}
+.tl li i{width:8px;height:8px;border-radius:50%;background:var(--kc,var(--faint));align-self:center}
+.tl .k-detect{--kc:var(--crit)} .tl .k-agent{--kc:var(--accent)} .tl .k-policy,.tl .k-human{--kc:var(--warn)}
+.tl .k-executor{--kc:var(--accent)} .tl .k-verifier,.tl .k-ok{--kc:var(--ok)} .tl .k-fail{--kc:var(--crit)}
+.tl .k-harness{color:var(--muted)}
+.hyps{list-style:none;padding:0;display:flex;flex-direction:column;gap:14px}
+.hyp-h{display:flex;justify-content:space-between;gap:10px;margin-bottom:6px}
+.bar{height:6px;background:var(--surface-2);border-radius:3px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--faint)}
+.bar i.top{background:var(--accent)}
+.refs{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.chip{font-family:var(--font-mono);font-size:11.5px;padding:1px 7px;border-radius:5px;border:1px solid var(--line-strong);color:var(--muted)}
+.chip.pos{color:var(--ok);border-color:var(--ok)} .chip.neg{color:var(--crit);border-color:var(--crit)}
+.trace-btn{display:flex;align-items:center;gap:8px;border:0;background:none;padding:0;font-weight:500;margin-bottom:10px}
+.trace-btn svg{transition:transform .15s}
+.trace-btn.open svg{transform:rotate(180deg)}
+.calls{list-style:none;padding:0;display:flex;flex-direction:column;gap:12px}
+.call-h{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:4px}
+code.call{display:block;font-family:var(--font-mono);font-size:12px;background:var(--surface-2);border-radius:6px;padding:5px 8px;overflow-x:auto;white-space:nowrap}
+.calls p{margin-top:4px}
+.acts,.ver{list-style:none;padding:0;display:flex;flex-direction:column;gap:12px}
+.acts li{display:flex;flex-direction:column;gap:6px;padding-bottom:12px;border-bottom:1px solid var(--line)}
+.acts li:last-child{border-bottom:0;padding-bottom:0}
+.act-h{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.ver{gap:8px}
+.ver li{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center}
+.jsteps{list-style:none;padding:0;margin:12px 0}
+.jsteps li{display:grid;grid-template-columns:14px minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
+.jsteps .si{width:10px;height:10px;border-radius:50%;background:var(--ok)}
+.jsteps .bad .si{background:var(--crit)} .jsteps .skip .si{background:var(--line-strong)}
+.jsteps .bad .ms{color:var(--crit)} .jsteps .skip .ms{color:var(--faint)}
+.jsteps .sn small{display:block;color:var(--muted);font-size:12px}
+.jfoot{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}
+.tchart{width:100%;height:auto;display:block}
+.tchart text{fill:var(--muted);font-size:11px;font-family:var(--font-mono)}
+.tchart .gl{stroke:var(--line);stroke-width:1}
+.tchart .lim{stroke:var(--crit);stroke-width:1;stroke-dasharray:4 4}
+.tchart text.limt{fill:var(--crit)}
+.tchart .ln{fill:none;stroke:var(--accent);stroke-width:2;stroke-linejoin:round}
+.tchart .dt{fill:var(--accent)}
+.code{font-family:var(--font-mono);font-size:12.5px;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:12px;overflow-x:auto;white-space:pre;margin-bottom:10px}
+.scroll{overflow-x:auto}
+.tbl{width:100%;border-collapse:collapse;min-width:520px}
+.tbl th{font-weight:500;color:var(--muted);text-align:left;font-size:12px;padding:8px 10px;border-bottom:1px solid var(--line)}
+.tbl td{padding:10px;border-bottom:1px solid var(--line);vertical-align:top}
+.tbl tr:last-child td{border-bottom:0}
+.ctrl{display:flex;flex-direction:column;gap:14px}
+.switch-row{display:flex;justify-content:space-between;align-items:center;gap:16px}
+.switch-row small{display:block;color:var(--muted);font-size:12.5px}
+.switch{position:relative;width:40px;height:22px;flex:none}
+.switch input{position:absolute;inset:0;opacity:0;margin:0;cursor:pointer}
+.switch i{position:absolute;inset:0;border-radius:999px;background:var(--line-strong);transition:background .15s;pointer-events:none}
+.switch i::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .15s}
+.switch input:checked+i{background:var(--accent)}
+.switch input:checked+i::after{transform:translateX(18px)}
+.switch input:focus-visible+i{outline:2px solid var(--accent);outline-offset:2px}
+.filters{margin-bottom:0}
+.toasts{position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:8px;z-index:50;width:min(360px,calc(100vw - 32px))}
+.toast{display:flex;flex-direction:column;gap:2px;text-align:left;padding:12px 14px;border-radius:10px;border:1px solid var(--line-strong);background:var(--surface);box-shadow:0 6px 24px rgba(0,0,0,.18);animation:rise .2s ease-out}
+.toast strong{font-weight:600}
+.toast span{color:var(--muted);font-size:13px}
+.toast.crit{border-color:var(--crit)} .toast.warn{border-color:var(--warn)} .toast.ok{border-color:var(--ok)}
+@keyframes rise{from{transform:translateY(8px);opacity:0}}
+@media (max-width:1000px){.split{grid-template-columns:minmax(0,1fr)}.list{flex-direction:row;overflow-x:auto}.li{min-width:220px}}
+@media (max-width:900px){
+  .app{grid-template-columns:minmax(0,1fr)}
+  .rail{position:static;height:auto;flex-direction:row;align-items:center;gap:10px;padding:10px 16px;border-right:0;border-bottom:1px solid var(--line);overflow-x:auto}
+  .nav{flex-direction:row;gap:4px}
+  .nav button{white-space:nowrap}
+  .rail-foot{display:none}
+  .brand{flex:none}
+}
+@media (max-width:560px){
+  .rows li{grid-template-columns:minmax(0,1fr) auto auto}
+  .rows .spark{display:none}
+  .feed li{grid-template-columns:58px minmax(0,1fr)}
+  .feed .tag{display:none}
+}
+</style>
+
+<body>
+<div id="app"></div>
+
+<script>
+'use strict';
+/* ---------- helpers ---------- */
+const API = { mode: 'simulator', base: '/api/v1' }; // swap run() for an EventSource on `${API.base}/events` to drive this UI from FastAPI
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const rnd = (a, b) => a + Math.random() * (b - a);
+const p2 = n => String(n).padStart(2, '0');
+const hms = (d = new Date()) => `${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}`;
+const rel = s => s == null ? '—' : `+${Math.floor(s / 60)}:${p2(Math.floor(s % 60))}`;
+const secs = s => s == null ? '—' : (s < 10 ? s.toFixed(1) : String(Math.round(s))) + ' s';
+const pct = v => v == null ? '—' : Math.round(v * 100) + '%';
+const dur = s => { const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60); return d ? `${d} d ${h} h` : h ? `${h} h ${m} m` : `${m} m`; };
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const lsGet = (k, d) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { } };
+let uid = 0;
+let queued = false;
+
+/* ---------- synthetic journeys (one panel per signal source) ---------- */
+const JDEF = [
+  { id: 'login', name: 'Login', via: 'Browser flow', base: 420, steps: [['Open login page', 'shop-web', .38], ['Submit credentials', 'auth-api', .37], ['Session cookie set', 'auth-api', .25]] },
+  { id: 'checkout', name: 'Checkout', via: 'Browser flow', base: 900, steps: [['Add item to cart', 'shop-api', .3], ['Review cart', 'shop-api', .25], ['Create order', 'shop-api → payments-primary', .45]] },
+  { id: 'payment', name: 'Payment', via: 'API probe', base: 1100, steps: [['Authorize card', 'payments-primary', .4], ['Capture payment', 'payments-primary', .35], ['Webhook received', 'payments-webhook', .25]] },
+  { id: 'order', name: 'Order confirmation', via: 'API probe', base: 780, steps: [['Order created', 'order-worker', .3], ['Status is confirmed', 'order-worker', .35], ['Hub acknowledges', 'fulfillment-hub-01', .35]] }
+];
+function makeJourney(d) {
+  return {
+    id: d.id, name: d.name, via: d.via, base: d.base, mode: 'ok', failStep: -1, slow: null, lastRun: hms(),
+    steps: d.steps.map(([name, svc, share]) => ({ name, svc, name0: name, svc0: svc, share, ok: true, ms: Math.round(d.base * share) })),
+    history: Array.from({ length: 40 }, () => Math.round(d.base * rnd(.92, 1.08)))
+  };
+}
+function probe(j) {
+  let total = 0;
+  j.steps.forEach((s, i) => {
+    const nominal = j.base * s.share * rnd(.92, 1.08);
+    if (j.mode === 'fail' && i === j.failStep) { s.ok = false; s.ms = null; total += 5000; }
+    else if (j.mode === 'fail' && i > j.failStep) { s.ok = null; s.ms = null; }
+    else if (j.mode === 'slow' && i === j.failStep && j.slow) {
+      if (Math.random() < j.slow.rate) { s.ok = false; s.ms = null; total += 5000; }
+      else { s.ok = true; s.ms = Math.round(rnd(j.slow.lo, j.slow.hi)); total += s.ms; }
+    } else { s.ok = true; s.ms = Math.round(nominal); total += s.ms; }
+  });
+  j.lastRun = hms(); j.history.push(Math.round(total)); if (j.history.length > 40) j.history.shift();
+}
+const jStatus = j => j.mode === 'fail' ? 'failed' : j.mode === 'slow' ? 'degraded' : 'ok';
+const J = id => S.journeys.find(j => j.id === id);
+
+/* ---------- policy: what the agent may do on its own ---------- */
+const ACTIONS = {
+  retry_operation: { name: 'Retry failed operation', risk: 'low', mode: 'auto', rollback: 'None needed, retries are idempotent' },
+  switch_endpoint: { name: 'Switch to fallback endpoint', risk: 'medium', mode: 'auto', rollback: 'Switch back once the primary passes a health check' },
+  restart_service: { name: 'Restart simulated service', risk: 'medium', mode: 'auto', rollback: 'Redeploy the previous container revision' },
+  open_ticket: { name: 'Open incident ticket', risk: 'low', mode: 'auto', rollback: 'Close the ticket with a note' },
+  power_cycle_device: { name: 'Power-cycle edge device', risk: 'high', mode: 'approval', rollback: 'Restore the previous device profile and route acks to the manual queue' }
+};
+const savedP = lsGet('loopwatch.policy', {});
+const P = {
+  killSwitch: !!savedP.killSwitch,
+  budget: savedP.budget || 3,
+  modes: Object.assign(Object.fromEntries(Object.entries(ACTIONS).map(([k, v]) => [k, v.mode])), savedP.modes || {})
+};
+const savePolicy = () => lsSet('loopwatch.policy', P);
+const modeFor = type => P.modes[type] === 'blocked' ? 'blocked' : (P.killSwitch ? 'approval' : P.modes[type]);
+const RISK = { low: 0, medium: 1, high: 2 };
+
+/* ---------- fault scenarios (scripted agent behaviour) ---------- */
+const SCEN = {
+  stall: {
+    icon: 'server', label: 'Stall the order queue', sub: 'Payment captured, order never confirms',
+    journey: 'order', sev: 'high', truth: 'worker', title: 'Payment captured but order not confirmed',
+    detect: { dt: 11.8, rule: 'State check: payment captured, order still pending after 10 s', signals: ['Order confirmation failed at "Status is confirmed"', '14 orders pending with captured payments'] },
+    apply() { const j = J('order'); j.mode = 'fail'; j.failStep = 1; probe(j); },
+    recover() { const j = J('order'); j.mode = 'ok'; j.failStep = -1; j.slow = null; probe(j); },
+    trace: [
+      { agent: 'Transactions', tool: 'db.orders(status="pending", age>60s)', out: '14 orders pending, all with payment=captured. The oldest is 94 s.', dt: 1.4 },
+      { agent: 'App and logs', tool: 'logs.search(service="order-worker", 5m)', out: 'No errors logged. The last "consumed" line was 4 minutes ago.', dt: 1.8 },
+      { agent: 'App and logs', tool: 'metrics.queue_depth("order-events")', out: 'Depth 212 and rising. Active consumers: 0 of 2.', dt: 1.1 },
+      { agent: 'Past incidents', tool: 'memory.similar(symptoms)', out: 'INC-0087 (92% match): worker stalled after a deploy, a restart cleared it.', dt: 1.3 },
+      { agent: 'Device', tool: 'device.health("fulfillment-hub-01")', out: 'Healthy: 41.2 °C, -58 dBm. The hub is not involved.', dt: .9 }
+    ],
+    hyps: [
+      { key: 'worker', cause: 'Order worker stalled, no active consumers', conf: .86, refs: [['E1', '+'], ['E2', '+'], ['E3', '+'], ['E4', '+']] },
+      { key: 'dblock', cause: 'Database lock contention', conf: .09, refs: [['E1', '+'], ['E2', '-']] },
+      { key: 'hub', cause: 'Fulfillment hub fault', conf: .05, refs: [['E5', '-']] }
+    ],
+    actions: [{ type: 'restart_service', target: 'order-worker' }], verifyPass: true
+  },
+  timeout: {
+    icon: 'zap', label: 'Break the checkout API', sub: 'Intermittent upstream timeouts',
+    journey: 'checkout', sev: 'high', truth: 'gateway', title: 'Checkout timing out on the primary payment endpoint',
+    detect: { dt: 8.4, rule: 'Latency and error rate: p95 above 3σ and over 15% timeouts for 30 s', signals: ['Checkout p95 4.8 s against a 0.9 s baseline', '22% of runs timed out at "Create order"'] },
+    apply() { const j = J('checkout'); j.mode = 'slow'; j.failStep = 2; j.slow = { lo: 3300, hi: 4700, rate: .22 }; probe(j); },
+    recover() { const j = J('checkout'); j.mode = 'ok'; j.failStep = -1; j.slow = null; probe(j); },
+    trace: [
+      { agent: 'App and logs', tool: 'traces.slowest(journey="checkout")', out: 'Slowest span: payments-primary /authorize, 4.6 s of a 4.8 s run.', dt: 1.5 },
+      { agent: 'App and logs', tool: 'logs.search("upstream timeout", 60s)', out: '37 timeouts to payments-primary. payments-fallback: 0 errors.', dt: 1.6 },
+      { agent: 'Transactions', tool: 'db.payments(status="unknown")', out: '6 payments in unknown state. No duplicate captures found.', dt: 1.2 },
+      { agent: 'Past incidents', tool: 'memory.similar(symptoms)', out: 'INC-0102 (88% match): primary gateway degraded, the fallback cleared it.', dt: 1.1 },
+      { agent: 'Device', tool: 'device.health("fulfillment-hub-01")', out: 'Healthy. The hub is not involved.', dt: .8 }
+    ],
+    hyps: [
+      { key: 'gateway', cause: 'Primary payment gateway degraded', conf: .81, refs: [['E1', '+'], ['E2', '+'], ['E4', '+']] },
+      { key: 'network', cause: 'Network congestion to the gateway', conf: .12, refs: [['E2', '-']] },
+      { key: 'pool', cause: 'App thread pool exhausted', conf: .07, refs: [['E1', '-']] }
+    ],
+    actions: [{ type: 'switch_endpoint', target: 'payments-primary → payments-fallback' }], verifyPass: true
+  },
+  overheat: {
+    icon: 'thermo', label: 'Overheat the ESP32', sub: 'Hub temperature climbs past 70 °C',
+    journey: 'order', sev: 'critical', truth: 'fan', title: 'Fulfillment hub overheating, acknowledgements delayed',
+    detect: { dt: 9.6, rule: 'Device threshold: temperature above 70 °C for 10 s', signals: ['Hub temperature 74.8 °C against a 70 °C limit', 'Order acknowledgement latency 3.1 s'] },
+    apply() { S.node.mode = 'overheat'; const j = J('order'); j.mode = 'slow'; j.failStep = 2; j.slow = { lo: 2800, hi: 3400, rate: 0 }; probe(j); },
+    recover() { },
+    failNote: 'Acknowledgement still 3.1 s and the hub is at 77 °C',
+    trace: [
+      { agent: 'Device', tool: 'device.telemetry("fulfillment-hub-01", 5m)', out: 'Temperature up 31 °C in 5 minutes. Fan reads 0 RPM.', dt: 1.3 },
+      { agent: 'App and logs', tool: 'logs.search("hub ack latency")', out: 'Acks delayed to 3.1 s. The hub is throttling its own polling.', dt: 1.4 },
+      { agent: 'Transactions', tool: 'db.orders(status="pending")', out: '3 orders waiting on hub acks. No payment problems.', dt: 1.0 },
+      { agent: 'Past incidents', tool: 'memory.similar(symptoms)', out: 'No close match. The best candidate scores 41%.', dt: 1.0 }
+    ],
+    hyps: [
+      { key: 'fan', cause: 'Cooling fault, fan stalled', conf: .74, refs: [['E1', '+'], ['E2', '+']] },
+      { key: 'sensor', cause: 'Temperature sensor miscalibrated', conf: .17, refs: [['E2', '-']] },
+      { key: 'ambient', cause: 'High ambient temperature', conf: .09, refs: [['E1', '-']] }
+    ],
+    actions: [{ type: 'power_cycle_device', target: 'fulfillment-hub-01' }], verifyPass: false
+  },
+  link: {
+    icon: 'wifi', label: 'Disconnect the ESP32', sub: 'Heartbeat stops, Wi-Fi link lost',
+    journey: 'order', sev: 'high', truth: 'wifi', mitigated: true, title: 'Fulfillment hub offline, order acknowledgements timing out',
+    detect: { dt: 6.4, rule: 'Heartbeat check: three heartbeats missed in a row', signals: ['No heartbeat from fulfillment-hub-01 for 6.2 s', 'Signal fell from -58 to -86 dBm before the dropout'] },
+    apply() { S.node.mode = 'dropping'; const j = J('order'); j.mode = 'fail'; j.failStep = 2; probe(j); },
+    recover() { const j = J('order'); j.mode = 'ok'; j.failStep = -1; j.slow = null; j.steps[2].name = 'Hub ack (manual queue)'; j.steps[2].svc = 'ops-queue'; probe(j); },
+    trace: [
+      { agent: 'Device', tool: 'device.telemetry("fulfillment-hub-01", 5m)', out: 'Signal fell from -58 to -86 dBm over 40 s, then no heartbeats.', dt: 1.2 },
+      { agent: 'App and logs', tool: 'network.ping("hub-gateway", "hub-ip")', out: 'The gateway answers. The hub address does not.', dt: 1.3 },
+      { agent: 'Transactions', tool: 'db.orders(status="pending")', out: '9 orders waiting on hub acks. All payments captured.', dt: 1.0 },
+      { agent: 'Past incidents', tool: 'memory.similar(symptoms)', out: 'INC-0095 (79% match): hub Wi-Fi drop, manual confirm plus a ticket.', dt: 1.1 }
+    ],
+    hyps: [
+      { key: 'wifi', cause: 'Hub Wi-Fi link lost', conf: .78, refs: [['E1', '+'], ['E2', '+'], ['E4', '+']] },
+      { key: 'crash', cause: 'Hub crashed (power or firmware)', conf: .17, refs: [['E1', '-']] },
+      { key: 'gw', cause: 'Gateway outage', conf: .05, refs: [['E2', '-']] }
+    ],
+    actions: [{ type: 'switch_endpoint', target: 'order acks → manual confirm queue' }, { type: 'open_ticket', target: 'Field check: fulfillment-hub-01' }], verifyPass: true
+  }
+};
+
+/* ---------- state ---------- */
+const S = {
+  view: 'overview', pace: 1, active: false, runId: 0, seq: 114, sel: null, approval: null, traceOpen: true, auditFilter: 'all',
+  journeys: JDEF.map(makeJourney),
+  node: { id: 'fulfillment-hub-01', model: 'ESP32-WROOM-32', mode: 'normal', online: true, temp: 41.2, tempHist: Array.from({ length: 60 }, () => +(41.2 + rnd(-.4, .4)).toFixed(1)), rssi: -58, uptime: 6 * 86400 + 4 * 3600 + 720, hb: .8, limit: 70, fan: 4200 },
+  incidents: [], feed: [], audit: [], toasts: []
+};
+
+function seedInc(o) {
+  const tl = [{ t: 0, kind: 'harness', text: 'Fault injected: ' + o.fault }, { t: o.detect, kind: 'detect', text: o.rule },
+  { t: o.detect + 6, kind: 'agent', text: 'Top hypothesis: ' + o.hyps[0].cause + ' (' + Math.round(o.hyps[0].conf * 100) + '%)' }];
+  o.acts.forEach((a, i) => tl.push({ t: o.detect + 9 + i * 3, kind: a.kind, text: a.text }));
+  tl.push({ t: o.end, kind: o.finalKind, text: o.final });
+  return {
+    id: o.id, title: o.title, sev: o.sev, risk: o.risk, status: o.status, stage: 'verify', failedStage: 'verify', journey: o.journey,
+    clock: o.end, timeline: tl, trace: [], hypotheses: o.hyps.map(h => ({ ...h, refs: [] })), actions: o.actions, verification: o.ver || [],
+    signals: [], detectLatency: o.detect, mttr: o.mttr == null ? null : o.mttr, rcaCorrect: o.rca, recovered: o.rec, falsePositive: !!o.fp,
+    demo: true, summary: o.summary || '', ticket: o.ticket || ''
+  };
+}
+const okRuns = [{ n: 1, ok: true, ms: 812 }, { n: 2, ok: true, ms: 790 }, { n: 3, ok: true, ms: 805 }];
+S.incidents = [
+  seedInc({ id: 'INC-0114', title: 'Fulfillment hub overheating, acknowledgements delayed', sev: 'critical', risk: 'high', status: 'escalated', journey: 'order', fault: 'fan stall on the hub', rule: 'Device threshold: temperature above 70 °C for 10 s', detect: 10.3, end: 52, mttr: null, rca: false, rec: false, ticket: 'TCK-2291',
+    hyps: [{ key: 'sensor', cause: 'Temperature sensor miscalibrated', conf: .48 }, { key: 'fan', cause: 'Cooling fault, fan stalled', conf: .41 }],
+    acts: [{ kind: 'human', text: 'Approved by operator: power-cycle fulfillment-hub-01' }, { kind: 'executor', text: 'Rolled back the device profile' }],
+    actions: [{ id: 'A1', type: 'power_cycle_device', name: 'Power-cycle edge device', target: 'fulfillment-hub-01', risk: 'high', mode: 'approval', state: 'rolled_back', rollback: ACTIONS.power_cycle_device.rollback }, { id: 'A2', type: 'open_ticket', name: 'Open incident ticket', target: 'TCK-2291', risk: 'low', mode: 'auto', state: 'done', rollback: ACTIONS.open_ticket.rollback }],
+    ver: [{ n: 1, ok: false, ms: null, note: 'Hub still at 76 °C after the power-cycle' }], finalKind: 'fail', final: 'Verification failed. Escalated to on-call with TCK-2291.' }),
+  seedInc({ id: 'INC-0110', title: 'Latency blip on Login', sev: 'medium', risk: 'low', status: 'false_positive', journey: 'login', fault: 'none (control run)', rule: 'Latency: one run above 3σ', detect: 4.2, end: 16, mttr: null, rca: null, rec: null, fp: true,
+    summary: 'Closed automatically: one slow run, and the re-check passed. No action was taken.',
+    hyps: [{ key: 'blip', cause: 'Transient network delay', conf: .6 }],
+    acts: [{ kind: 'verifier', text: 'Re-check passed 3 of 3, no action needed' }], actions: [], ver: okRuns, finalKind: 'ok', final: 'Closed as a false positive.' }),
+  seedInc({ id: 'INC-0102', title: 'Checkout timing out on the primary payment endpoint', sev: 'high', risk: 'medium', status: 'resolved', journey: 'checkout', fault: 'primary gateway degraded', rule: 'Latency and error rate: p95 above 3σ and over 15% timeouts for 30 s', detect: 9.1, end: 58, mttr: 58, rca: true, rec: true,
+    hyps: [{ key: 'gateway', cause: 'Primary payment gateway degraded', conf: .84 }, { key: 'network', cause: 'Network congestion', conf: .1 }],
+    acts: [{ kind: 'executor', text: 'Switched payments-primary → payments-fallback' }],
+    actions: [{ id: 'A1', type: 'switch_endpoint', name: 'Switch to fallback endpoint', target: 'payments-primary → payments-fallback', risk: 'medium', mode: 'auto', state: 'done', rollback: ACTIONS.switch_endpoint.rollback }], ver: okRuns, finalKind: 'ok', final: 'Journey verified healthy. Incident resolved.' }),
+  seedInc({ id: 'INC-0095', title: 'Fulfillment hub offline, order acknowledgements timing out', sev: 'high', risk: 'medium', status: 'mitigated', journey: 'order', fault: 'hub Wi-Fi drop', rule: 'Heartbeat check: three heartbeats missed in a row', detect: 6.9, end: 48, mttr: 48, rca: true, rec: true, ticket: 'TCK-2204',
+    hyps: [{ key: 'wifi', cause: 'Hub Wi-Fi link lost', conf: .8 }, { key: 'crash', cause: 'Hub crashed', conf: .15 }],
+    acts: [{ kind: 'executor', text: 'Switched order acks to the manual confirm queue' }, { kind: 'executor', text: 'Opened TCK-2204 for a field check' }],
+    actions: [{ id: 'A1', type: 'switch_endpoint', name: 'Switch to fallback endpoint', target: 'order acks → manual confirm queue', risk: 'medium', mode: 'auto', state: 'done', rollback: ACTIONS.switch_endpoint.rollback }, { id: 'A2', type: 'open_ticket', name: 'Open incident ticket', target: 'TCK-2204', risk: 'low', mode: 'auto', state: 'done', rollback: ACTIONS.open_ticket.rollback }],
+    ver: okRuns, finalKind: 'ok', final: 'Journey restored through the fallback. The hub is still offline.' }),
+  seedInc({ id: 'INC-0087', title: 'Payment captured but order not confirmed', sev: 'high', risk: 'medium', status: 'resolved', journey: 'order', fault: 'order worker stalled', rule: 'State check: payment captured, order still pending after 10 s', detect: 12.4, end: 71, mttr: 71, rca: true, rec: true,
+    hyps: [{ key: 'worker', cause: 'Order worker stalled after a deploy', conf: .9 }, { key: 'dblock', cause: 'Database lock contention', conf: .07 }],
+    acts: [{ kind: 'executor', text: 'Restarted order-worker' }],
+    actions: [{ id: 'A1', type: 'restart_service', name: 'Restart simulated service', target: 'order-worker', risk: 'medium', mode: 'auto', state: 'done', rollback: ACTIONS.restart_service.rollback }], ver: okRuns, finalKind: 'ok', final: 'Journey verified healthy. Incident resolved.' })
+];
+S.audit = lsGet('loopwatch.audit', null) || (() => {
+  const t0 = Date.now(), m = (mins, actor, inc, text) => ({ id: ++uid, ts: new Date(t0 - mins * 60000).toISOString(), actor, inc, text, demo: true });
+  return [m(184, 'executor', 'INC-0114', 'Opened TCK-2291: field inspection of fulfillment-hub-01'), m(184, 'verifier', 'INC-0114', 'Verification failed. Rolled back and escalated'), m(185, 'human', 'INC-0114', 'Approved power-cycle of fulfillment-hub-01'), m(187, 'policy', 'INC-0114', 'Requested approval for Power-cycle edge device'), m(188, 'agent', 'INC-0114', 'Ranked 2 hypotheses, top: temperature sensor miscalibrated (48%)'), m(190, 'detector', 'INC-0114', 'Opened INC-0114: hub temperature above 70 °C for 10 s')];
+})();
+uid = Math.max(uid, ...S.audit.map(e => e.id || 0));
+
+/* ---------- event helpers ---------- */
+function feed(kind, text) { S.feed.unshift({ id: ++uid, t: hms(), kind, text }); if (S.feed.length > 40) S.feed.pop(); invalidate(); }
+function toast(kind, title, text, inc) {
+  const id = ++uid; S.toasts.push({ id, kind, title, text, inc });
+  setTimeout(() => { const i = S.toasts.findIndex(t => t.id === id); if (i > -1) { S.toasts.splice(i, 1); invalidate(); } }, 6500); invalidate();
+}
+function log(actor, text, inc) { S.audit.unshift({ id: ++uid, ts: new Date().toISOString(), actor, inc: inc ? inc.id : '', text }); if (S.audit.length > 300) S.audit.length = 300; lsSet('loopwatch.audit', S.audit); invalidate(); }
+function ev(inc, kind, text, t) { inc.timeline.push({ t: +(t == null ? inc.clock : t).toFixed(1), kind, text }); invalidate(); }
+feed('info', 'Policy loaded: 5 actions, autonomy ' + (P.killSwitch ? 'paused' : 'on'));
+feed('info', 'Edge node fulfillment-hub-01 connected, heartbeat every 2 s');
+feed('info', 'Synthetic journeys scheduled: 4 (demo runs every 2 s)');
+
+/* ---------- the loop: detect, investigate, decide, act, verify ---------- */
+const CANCEL = Symbol('cancel');
+const isFinal = s => ['resolved', 'mitigated', 'escalated', 'false_positive', 'cancelled'].includes(s);
+const openCount = () => S.incidents.filter(i => !isFinal(i.status)).length;
+
+function newIncident(sc) {
+  S.seq++;
+  const risk = sc.actions.reduce((m, a) => RISK[ACTIONS[a.type].risk] > RISK[m] ? ACTIONS[a.type].risk : m, 'low');
+  S.incidents.unshift({
+    id: 'INC-' + String(S.seq).padStart(4, '0'), title: sc.title, sev: sc.sev, risk, status: 'investigating', stage: 'detect', failedStage: 'verify', journey: sc.journey,
+    clock: sc.detect.dt, timeline: [], trace: [], hypotheses: [], actions: [], verification: [], signals: sc.detect.signals.slice(), detectLatency: sc.detect.dt,
+    mttr: null, rcaCorrect: null, recovered: null, falsePositive: false, demo: false, summary: '', ticket: ''
+  });
+  return S.incidents[0];
+}
+function escalate(inc, reason, stage) {
+  inc.failedStage = stage; inc.status = 'escalated'; inc.recovered = false; inc.mttr = null;
+  inc.ticket = 'TCK-' + (2300 + S.seq);
+  inc.actions.push({ id: 'A' + (inc.actions.length + 1), type: 'open_ticket', name: ACTIONS.open_ticket.name, target: inc.ticket, risk: 'low', mode: 'auto', state: 'done', rollback: ACTIONS.open_ticket.rollback });
+  inc.clock += 1.5;
+  ev(inc, 'fail', `Escalated to on-call: ${reason}. Ticket ${inc.ticket} opened.`);
+  log('executor', `Opened ${inc.ticket} for ${inc.id}: ${reason}`, inc);
+  toast('crit', inc.id + ' escalated', reason, inc.id);
+  feed('crit', `${inc.id} escalated: ${reason}`);
+}
+const ask = (inc, act) => new Promise(res => { S.approval = { incId: inc.id, actionId: act.id, resolve: res }; invalidate(); });
+function decide(ok) { const a = S.approval; if (!a) return; S.approval = null; a.resolve(ok); invalidate(); }
+
+async function run(key) {
+  if (S.active) return;
+  const sc = SCEN[key], token = ++S.runId;
+  S.active = true; invalidate();
+  const w = async dt => { await sleep(Math.min(1300, 160 + dt * 210) * S.pace); if (token !== S.runId) throw CANCEL; };
+  try {
+    sc.apply(); feed('warn', 'Harness injected a fault: ' + sc.label);
+    await w(sc.detect.dt);
+    const inc = newIncident(sc); S.sel = inc.id;
+    ev(inc, 'harness', 'Fault injected: ' + sc.label, 0);
+    ev(inc, 'detect', sc.detect.rule, sc.detect.dt);
+    log('detector', `Opened ${inc.id}: ${sc.title}`, inc);
+    toast('crit', inc.id + ' opened', sc.title, inc.id); feed('crit', `${inc.id} opened: ${sc.title}`);
+
+    sc.trace.forEach(() => { });
+    for (let i = 0; i < sc.trace.length; i++) {
+      const s = sc.trace[i]; await w(s.dt); inc.clock += s.dt;
+      inc.trace.push({ id: 'E' + (i + 1), agent: s.agent, tool: s.tool, out: s.out, t: +inc.clock.toFixed(1) });
+      ev(inc, 'agent', `${s.agent}: ${s.out}`);
+    }
+    await w(1.5); inc.clock += 1.5; inc.stage = 'decide'; inc.status = 'deciding';
+    inc.hypotheses = sc.hyps.map(h => ({ ...h, refs: h.refs.map(r => r.slice()) }));
+    inc.rcaCorrect = inc.hypotheses[0].key === sc.truth;
+    ev(inc, 'agent', `Ranked ${inc.hypotheses.length} hypotheses. Top: ${inc.hypotheses[0].cause} (${Math.round(inc.hypotheses[0].conf * 100)}%)`);
+    log('agent', `Ranked ${inc.hypotheses.length} hypotheses, top: ${inc.hypotheses[0].cause} (${Math.round(inc.hypotheses[0].conf * 100)}%)`, inc);
+
+    let executed = 0;
+    for (const spec of sc.actions) {
+      const def = ACTIONS[spec.type], mode = modeFor(spec.type);
+      await w(.6); inc.clock += .6;
+      inc.actions.push({ id: 'A' + (inc.actions.length + 1), type: spec.type, name: def.name, target: spec.target, risk: def.risk, mode, state: 'pending', rollback: def.rollback });
+      const a = inc.actions[inc.actions.length - 1];
+      ev(inc, 'policy', `Policy: ${def.name} on ${spec.target}, risk ${def.risk}, ${mode === 'auto' ? 'auto-approved' : mode === 'approval' ? 'needs human approval' : 'blocked'}`);
+      log('policy', `${def.name} on ${spec.target}: ${mode === 'auto' ? 'auto-approved' : mode === 'approval' ? 'approval required' : 'blocked'}`, inc);
+      if (executed >= P.budget) { a.state = 'blocked'; return escalate(inc, 'Action budget exhausted', 'decide'); }
+      if (mode === 'blocked') { a.state = 'blocked'; return escalate(inc, def.name + ' is blocked by policy', 'decide'); }
+      if (mode === 'approval') {
+        inc.status = 'awaiting_approval'; a.state = 'awaiting'; invalidate();
+        toast('warn', 'Approval needed', `${def.name} on ${spec.target}`, inc.id);
+        feed('human', `${inc.id} is waiting for approval: ${def.name}`);
+        const since = Date.now(), ok = await ask(inc, a);
+        if (token !== S.runId) throw CANCEL;
+        inc.clock += Math.max(5, Math.round((Date.now() - since) / 1000));
+        if (!ok) { a.state = 'denied'; ev(inc, 'human', 'Denied by operator'); log('human', `Denied ${def.name} on ${spec.target}`, inc); return escalate(inc, 'Approval denied', 'decide'); }
+        a.state = 'approved'; ev(inc, 'human', 'Approved by operator'); log('human', `Approved ${def.name} on ${spec.target}`, inc);
+      }
+      inc.stage = 'act'; inc.status = 'acting'; a.state = 'running';
+      ev(inc, 'executor', `Running: ${def.name} on ${spec.target}`);
+      await w(2); inc.clock += 2.4; a.state = 'done'; executed++;
+      ev(inc, 'executor', `Completed: ${def.name}`); log('executor', `Completed ${def.name} on ${spec.target}`, inc);
+    }
+    sc.recover();
+
+    inc.stage = 'verify'; inc.status = 'verifying'; invalidate();
+    const jr = J(sc.journey); let pass = true;
+    for (let k = 1; k <= 3; k++) {
+      await w(1.2); inc.clock += 3; probe(jr);
+      const ok = sc.verifyPass;
+      inc.verification.push({ n: k, ok, ms: ok ? Math.round(jr.base * rnd(.95, 1.05)) : null, note: ok ? '' : sc.failNote });
+      ev(inc, ok ? 'verifier' : 'fail', `Re-run ${k} of 3 for "${jr.name}": ${ok ? 'passed' : 'failed'}`);
+      if (!ok) { pass = false; break; }
+    }
+    if (pass) {
+      inc.status = sc.mitigated ? 'mitigated' : 'resolved'; inc.recovered = true; inc.mttr = +inc.clock.toFixed(1);
+      const msg = sc.mitigated ? 'Journey restored through the fallback. The hub is still offline.' : 'Journey verified healthy. Incident resolved.';
+      ev(inc, 'ok', msg); log('verifier', `${inc.id}: ${msg}`, inc);
+      toast('ok', inc.id + (sc.mitigated ? ' mitigated' : ' resolved'), `Time to resolve ${secs(inc.mttr)}`, inc.id); feed('ok', `${inc.id} ${sc.mitigated ? 'mitigated' : 'resolved'} in ${secs(inc.mttr)}`);
+    } else {
+      log('verifier', `${inc.id}: verification failed, ${sc.failNote}`, inc);
+      for (const x of inc.actions.slice().reverse()) {
+        if (x.state === 'done' && x.type !== 'open_ticket') { await w(1); inc.clock += 2; x.state = 'rolled_back'; ev(inc, 'executor', `Rolled back: ${x.name}. ${x.rollback}.`); log('executor', `Rolled back ${x.name}`, inc); }
+      }
+      escalate(inc, 'Verification failed after recovery', 'verify');
+    }
+  } catch (e) { if (e !== CANCEL) console.error(e); }
+  finally { if (token === S.runId) { S.active = false; invalidate(); } }
+}
+function heal() {
+  S.journeys.forEach(j => { j.mode = 'ok'; j.failStep = -1; j.slow = null; j.steps.forEach(s => { s.name = s.name0; s.svc = s.svc0; }); probe(j); });
+  Object.assign(S.node, { mode: 'normal', online: true, temp: 41.2, rssi: -58, fan: 4200, hb: .8 });
+}
+function reset() {
+  S.runId++; if (S.approval) { S.approval.resolve(null); S.approval = null; }
+  S.incidents.forEach(i => { if (!isFinal(i.status)) i.status = 'cancelled'; });
+  S.active = false; heal(); feed('info', 'System reset: all journeys and the edge node are healthy'); log('human', 'Reset the demo system'); invalidate();
+}
+
+/* ---------- live ticks ---------- */
+setInterval(() => { S.journeys.forEach(probe); invalidate(); }, 2000);
+setInterval(() => {
+  const n = S.node;
+  if (n.mode === 'normal') { n.temp += (41.2 - n.temp) * .25 + rnd(-.25, .25); n.rssi = Math.round(-58 + rnd(-2, 2)); n.fan = Math.round(4200 + rnd(-60, 60)); n.hb = +rnd(.5, 1.7).toFixed(1); n.online = true; n.uptime++; }
+  else if (n.mode === 'overheat') { n.temp = Math.min(77.5 + rnd(-.4, .4), n.temp + rnd(1.1, 2.1)); n.fan = Math.max(0, n.fan - 700); n.rssi = Math.round(-58 + rnd(-2, 2)); n.hb = +rnd(.5, 1.7).toFixed(1); n.uptime++; }
+  else if (n.mode === 'dropping') { n.rssi = Math.max(-92, n.rssi - 5); n.hb = +rnd(.5, 1.7).toFixed(1); n.uptime++; if (n.rssi <= -86) n.mode = 'offline'; }
+  else if (n.mode === 'offline') { n.online = false; n.hb = +(n.hb + 1).toFixed(1); }
+  n.tempHist.push(+n.temp.toFixed(1)); if (n.tempHist.length > 60) n.tempHist.shift();
+  invalidate();
+}, 1000);
+
+/* ---------- metrics ---------- */
+function metrics() {
+  const done = S.incidents.filter(i => ['resolved', 'mitigated', 'escalated', 'false_positive'].includes(i.status));
+  const real = done.filter(i => !i.falsePositive);
+  const mean = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
+  return {
+    n: done.length, real: real.length, detect: mean(real.map(i => i.detectLatency)),
+    rca: real.length ? real.filter(i => i.rcaCorrect).length / real.length : null,
+    rec: real.length ? real.filter(i => i.recovered).length / real.length : null,
+    fp: done.length ? done.filter(i => i.falsePositive).length / done.length : null,
+    mttr: mean(real.filter(i => i.recovered).map(i => i.mttr))
+  };
+}
+
+/* ---------- view helpers ---------- */
+const ICONS = {
+  grid: 'M3 3h7v7H3z|M14 3h7v7h-7z|M3 14h7v7H3z|M14 14h7v7h-7z',
+  alert: 'M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z|M12 9v4|M12 17h.01',
+  activity: 'M22 12h-4l-3 9L9 3l-3 9H2',
+  cpu: 'M4 4h16v16H4z|M9 9h6v6H9z|M9 1v3|M15 1v3|M9 20v3|M15 20v3|M20 9h3|M20 14h3|M1 9h3|M1 14h3',
+  shield: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z',
+  list: 'M8 6h13|M8 12h13|M8 18h13|M3 6h.01|M3 12h.01|M3 18h.01',
+  bars: 'M18 20V10|M12 20V4|M6 20v-6',
+  zap: 'M13 2L3 14h9l-1 8 10-12h-9l1-8z',
+  thermo: 'M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z',
+  wifi: 'M5 12.55a11 11 0 0 1 14.08 0|M1.42 9a16 16 0 0 1 21.16 0|M8.53 16.11a6 6 0 0 1 6.95 0|M12 20h.01',
+  server: 'M2 4h20v6H2z|M2 14h20v6H2z|M6 7h.01|M6 17h.01',
+  lock: 'M5 11h14v10H5z|M8 11V7a4 4 0 0 1 8 0v4',
+  refresh: 'M23 4v6h-6|M1 20v-6h6|M3.5 9a9 9 0 0 1 14.9-3.4L23 10|M1 14l4.6 4.4A9 9 0 0 0 20.5 15',
+  chev: 'M6 9l6 6 6-6'
+};
+const ic = (n, s = 16) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${(ICONS[n] || '').split('|').map(d => `<path d="${d}"/>`).join('')}</svg>`;
+const LOGO = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 4v4h-4"/><circle cx="12" cy="12" r="2.2" fill="currentColor" stroke="none"/></svg>`;
+const pill = (t, tone = '') => `<span class="pill ${tone}">${esc(t)}</span>`;
+const jTone = j => ({ ok: 'ok', degraded: 'warn', failed: 'crit' }[jStatus(j)]);
+const jLabel = j => ({ ok: 'Healthy', degraded: 'Degraded', failed: 'Failing' }[jStatus(j)]);
+const sevTone = s => s === 'critical' ? 'crit' : s === 'high' ? 'warn' : '';
+const riskTone = r => ({ low: 'ok', medium: 'warn', high: 'crit' }[r]);
+const STAT = { investigating: ['Investigating', 'acc'], deciding: ['Deciding', 'acc'], awaiting_approval: ['Awaiting approval', 'warn'], acting: ['Recovering', 'acc'], verifying: ['Verifying', 'acc'], resolved: ['Resolved', 'ok'], mitigated: ['Mitigated', 'ok'], escalated: ['Escalated', 'crit'], false_positive: ['False positive', ''], cancelled: ['Cancelled', ''] };
+const stat = s => STAT[s] || [s, ''];
+const ACT_STATE = { pending: ['Queued', ''], awaiting: ['Awaiting approval', 'warn'], approved: ['Approved', 'ok'], running: ['Running', 'acc'], done: ['Done', 'ok'], rolled_back: ['Rolled back', 'warn'], denied: ['Denied', 'crit'], blocked: ['Blocked', 'crit'] };
+const KIND = { info: 'Info', ok: 'OK', warn: 'Warning', crit: 'Alert', agent: 'Agent', human: 'Operator' };
+const jName = id => (S.journeys.find(j => j.id === id) || {}).name || id;
+const fmtTs = ts => new Date(ts).toLocaleString([], { hour12: false, month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+const ORDER = ['detect', 'investigate', 'decide', 'act', 'verify'];
+function stageStates(inc) {
+  const idx = ORDER.indexOf(inc.stage), fin = inc.status === 'resolved' || inc.status === 'mitigated', bad = inc.status === 'escalated', fi = ORDER.indexOf(inc.failedStage);
+  return ORDER.map((k, i) => ({
+    label: k[0].toUpperCase() + k.slice(1),
+    state: inc.status === 'false_positive' ? 'done' : inc.status === 'cancelled' ? 'todo' : fin ? 'done' : bad ? (i < fi ? 'done' : i === fi ? 'fail' : 'todo') : i < idx ? 'done' : i === idx ? (inc.status === 'awaiting_approval' ? 'wait' : 'active') : 'todo'
+  }));
+}
+const steps = inc => `<ol class="steps">${stageStates(inc).map(s => `<li class="${s.state}"><i></i><span>${s.label}</span></li>`).join('')}</ol>`;
+function spark(v, w = 120, h = 32, tone = 'acc') {
+  const hi = Math.max(...v, 1), pd = 3;
+  const pts = v.map((y, i) => [pd + i * (w - 2 * pd) / Math.max(v.length - 1, 1), h - pd - (y / hi) * (h - 2 * pd)]);
+  const line = pts.map(p => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' '), l = pts[pts.length - 1];
+  return `<svg class="spark ${tone}" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true"><polygon points="${pd},${h - 1} ${line} ${l[0].toFixed(1)},${h - 1}" class="sa"/><polyline points="${line}" class="sl"/><circle cx="${l[0].toFixed(1)}" cy="${l[1].toFixed(1)}" r="2.6" class="sd"/></svg>`;
+}
+function tchart(v, limit) {
+  const W = 560, H = 170, L = 34, R = 10, T = 10, B = 22, lo = 20, hi = 90;
+  const y = t => T + (hi - t) / (hi - lo) * (H - T - B), x = i => L + i * (W - L - R) / Math.max(v.length - 1, 1);
+  const pts = v.map((t, i) => `${x(i).toFixed(1)},${y(Math.min(hi, Math.max(lo, t))).toFixed(1)}`).join(' ');
+  const lastT = v[v.length - 1], lx = x(v.length - 1), ly = y(Math.min(hi, Math.max(lo, lastT)));
+  return `<svg class="tchart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Temperature over the last 60 seconds">
+    ${[20, 40, 60, 80].map(t => `<line x1="${L}" x2="${W - R}" y1="${y(t)}" y2="${y(t)}" class="gl"/><text x="${L - 6}" y="${y(t) + 4}" text-anchor="end">${t}</text>`).join('')}
+    <line x1="${L}" x2="${W - R}" y1="${y(limit)}" y2="${y(limit)}" class="lim"/><text x="${L + 6}" y="${y(limit) - 5}" class="limt">limit ${limit} °C</text>
+    <polyline points="${pts}" class="ln"/><circle cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" r="3.5" class="dt"/>
+    <text x="${L}" y="${H - 5}">-60 s</text><text x="${W - R}" y="${H - 5}" text-anchor="end">now</text></svg>`;
+}
+function approvalPanel(inc) {
+  const ap = S.approval; if (!ap || ap.incId !== inc.id) return '';
+  const a = inc.actions.find(x => x.id === ap.actionId); if (!a) return '';
+  const top = inc.hypotheses[0];
+  return `<div class="approve" role="alert"><div class="approve-h">${ic('lock')}<strong>Approval needed: ${esc(a.name)}</strong>${pill('Risk ' + a.risk, riskTone(a.risk))}</div>
+    <p>Target <span class="mono">${esc(a.target)}</span>. Likely cause: ${esc(top ? top.cause : 'under investigation')} (${top ? Math.round(top.conf * 100) : 0}%).</p>
+    <p class="small muted">If the fix does not hold, the agent will: ${esc(a.rollback)}.</p>
+    <div class="btns"><button class="btn primary" data-act="decide" data-arg="yes">Approve and run</button><button class="btn" data-act="decide" data-arg="no">Deny and escalate</button></div></div>`;
+}
+const head = (t, sub, right = '') => `<header class="head"><div><h1>${t}</h1><p class="sub">${sub}</p></div>${right}</header>`;
+
+/* ---------- pages ---------- */
+function overall() {
+  if (S.incidents.some(i => i.status === 'awaiting_approval')) return ['warn', 'Waiting for approval'];
+  const n = openCount(); if (n) return ['crit', n + (n > 1 ? ' open incidents' : ' open incident')];
+  const bad = S.journeys.filter(j => jStatus(j) !== 'ok').length; if (bad) return ['warn', bad + (bad > 1 ? ' journeys degraded' : ' journey degraded')];
+  return ['ok', 'All journeys healthy'];
+}
+function pOverview() {
+  const m = metrics(), n = S.node, ok = S.journeys.filter(j => jStatus(j) === 'ok').length;
+  const deg = S.journeys.filter(j => jStatus(j) === 'degraded').length, bad = S.journeys.filter(j => jStatus(j) === 'failed').length;
+  const live = S.incidents.find(i => !i.demo), ov = overall(), aw = S.incidents.some(i => i.status === 'awaiting_approval');
+  const last = live && live.timeline.length ? live.timeline[live.timeline.length - 1] : null;
+  return `<section class="view">
+  ${head('Overview', 'Journeys, edge telemetry and recovery at a glance.', `<span class="pill ${ov[0]}"><i class="dot"></i>${ov[1]}</span>`)}
+  <div class="grid kpis">
+    <div class="kpi"><span class="k">Journeys healthy</span><span class="v mono">${ok}<small>/${S.journeys.length}</small></span><span class="s">${bad || deg ? `${bad} failing, ${deg} degraded` : 'Every step passing'}</span></div>
+    <div class="kpi"><span class="k">Open incidents</span><span class="v mono">${openCount()}</span><span class="s">${aw ? 'Waiting for your approval' : 'Nothing needs you'}</span></div>
+    <div class="kpi"><span class="k">Mean time to resolve</span><span class="v mono">${secs(m.mttr)}</span><span class="s">Simulated clock, ${m.real} incidents</span></div>
+    <div class="kpi"><span class="k">Edge node</span><span class="v mono">${n.online ? n.temp.toFixed(1) + ' °C' : 'Offline'}</span><span class="s">${n.online ? `Online, ${n.rssi} dBm` : `No heartbeat for ${n.hb.toFixed(0)} s`}</span></div>
+  </div>
+  <div class="grid cols-2">
+    <div class="card"><h2 style="margin-bottom:12px">Journeys</h2><ul class="rows">${S.journeys.map(j => `<li><div class="nm"><strong>${j.name}</strong><span>${j.via}</span></div>${pill(jLabel(j), jTone(j))}<span class="mono">${(j.history[j.history.length - 1] / 1000).toFixed(1)} s</span>${spark(j.history, 110, 30, jTone(j))}</li>`).join('')}</ul></div>
+    <div class="stack">
+      <div class="card"><div class="card-h"><h2>${live && isFinal(live.status) ? 'Latest incident' : 'Incident in progress'}</h2>${live ? `<button class="link" data-act="openInc" data-arg="${live.id}">Open</button>` : ''}</div>
+        ${live ? `<p class="inc-t"><span class="mono muted">${live.id}</span> ${esc(live.title)}</p><div class="pills">${pill(live.sev, sevTone(live.sev))}${pill(stat(live.status)[0], stat(live.status)[1])}</div>${steps(live)}<p class="now">${last ? `<span class="mono">${rel(last.t)}</span> ${esc(last.text)}` : ''}</p>${approvalPanel(live)}` : '<p class="empty">No incident yet. Use the fault injector below to break something.</p>'}
+      </div>
+      <div class="card"><h2 style="margin-bottom:12px">Fault injector</h2>
+        <div class="inj">${Object.entries(SCEN).map(([k, s]) => `<button class="inj-btn" data-act="run" data-arg="${k}"${S.active ? ' disabled' : ''}>${ic(s.icon, 18)}<span><strong>${s.label}</strong><small>${s.sub}</small></span></button>`).join('')}</div>
+        <div class="inj-foot"><label>Pace <select id="pace" data-chg="pace">${[['0.5', 'Fast'], ['1', 'Normal'], ['1.8', 'Slow']].map(([v, l]) => `<option value="${v}"${+v === S.pace ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
+        <button class="btn" data-act="reset">${ic('refresh', 14)}Reset system</button></div>
+        <p class="hint" style="margin-top:10px">Simulator mode: faults and agent steps are scripted in this page.</p>
+      </div>
+    </div>
+  </div>
+  <div class="card"><h2 style="margin-bottom:8px">Live feed</h2><ul class="feed">${S.feed.map(e => `<li><span class="mono t">${e.t}</span><span class="tag ${e.kind}">${KIND[e.kind]}</span><span>${esc(e.text)}</span></li>`).join('')}</ul></div>
+  </section>`;
+}
+function pIncidents() {
+  const cur = S.incidents.find(i => i.id === S.sel) || S.incidents[0];
+  const list = S.incidents.map(i => `<button class="li${cur && cur.id === i.id ? ' on' : ''}" data-act="selInc" data-arg="${i.id}"><span class="mono muted">${i.id}</span><strong>${esc(i.title)}</strong><span class="pills">${pill(stat(i.status)[0], stat(i.status)[1])}${i.demo ? pill('Sample') : ''}</span></button>`).join('');
+  let detail = '<div class="card empty">Select an incident.</div>';
+  if (cur) {
+    const agents = new Set(cur.trace.map(t => t.agent)).size;
+    detail = `<div class="detail">
+    <div class="card"><div class="pills"><span class="mono muted">${cur.id}</span>${pill(cur.sev, sevTone(cur.sev))}${pill('Risk ' + cur.risk, riskTone(cur.risk))}${pill(stat(cur.status)[0], stat(cur.status)[1])}${cur.demo ? pill('Sample') : ''}</div>
+      <h2 class="inc-h">${esc(cur.title)}</h2>
+      <dl class="meta"><div><dt>Journey</dt><dd>${jName(cur.journey)}</dd></div><div><dt>Detected after</dt><dd class="mono">${secs(cur.detectLatency)}</dd></div><div><dt>Time to resolve</dt><dd class="mono">${cur.mttr != null ? secs(cur.mttr) : '—'}</dd></div>${cur.ticket ? `<div><dt>Ticket</dt><dd class="mono">${cur.ticket}</dd></div>` : ''}</dl>
+      ${steps(cur)}
+      ${cur.signals.length ? `<ul class="signals">${cur.signals.map(s => `<li>${esc(s)}</li>`).join('')}</ul>` : ''}
+      ${cur.summary ? `<p class="muted" style="margin-top:10px">${esc(cur.summary)}</p>` : ''}
+      ${approvalPanel(cur)}
+    </div>
+    <div class="grid cols-2">
+      <div class="card"><h2 style="margin-bottom:8px">Timeline</h2><ol class="tl">${cur.timeline.map(e => `<li class="k-${e.kind}"><span class="mono t">${rel(e.t)}</span><i></i><span>${esc(e.text)}</span></li>`).join('')}</ol></div>
+      <div class="card"><h2 style="margin-bottom:12px">Root-cause hypotheses</h2>
+        ${cur.hypotheses.length ? `<ul class="hyps">${cur.hypotheses.map((h, i) => `<li><div class="hyp-h"><strong>${esc(h.cause)}</strong><span class="mono">${Math.round(h.conf * 100)}%</span></div><div class="bar"><i class="${i === 0 ? 'top' : ''}" style="width:${Math.round(h.conf * 100)}%"></i></div><div class="refs">${i === 0 ? pill('Selected', 'acc') : ''}${h.refs.map(r => `<span class="chip ${r[1] === '+' ? 'pos' : 'neg'}">${r[0]} ${r[1] === '+' ? 'supports' : 'weakens'}</span>`).join('')}</div></li>`).join('')}</ul>` : '<p class="empty">Hypotheses appear after the specialists report.</p>'}
+      </div>
+    </div>
+    <div class="grid cols-2">
+      <div class="card"><h2 style="margin-bottom:10px">Investigation trace</h2>
+        ${cur.trace.length ? `<button class="trace-btn${S.traceOpen ? ' open' : ''}" data-act="toggleTrace">${ic('chev', 14)}${cur.trace.length} tool calls by ${agents} specialists</button>${S.traceOpen ? `<ol class="calls">${cur.trace.map(c => `<li><div class="call-h"><span class="chip">${c.id}</span>${pill(c.agent)}<span class="mono t">${rel(c.t)}</span></div><code class="call">${esc(c.tool)}</code><p>${esc(c.out)}</p></li>`).join('')}</ol>` : ''}` : `<p class="empty">${cur.demo ? 'Traces are not stored for sample incidents.' : 'The coordinator is dispatching specialists.'}</p>`}
+      </div>
+      <div class="card"><h2 style="margin-bottom:12px">Recovery and verification</h2>
+        ${cur.actions.length ? `<ul class="acts">${cur.actions.map(a => `<li><div class="act-h"><strong>${esc(a.name)}</strong>${pill(ACT_STATE[a.state][0], ACT_STATE[a.state][1])}</div><p class="muted">Target <span class="mono">${esc(a.target)}</span></p><div class="pills">${pill('Risk ' + a.risk, riskTone(a.risk))}${pill(a.mode === 'auto' ? 'Auto-approved' : a.mode === 'approval' ? 'Needed approval' : 'Blocked')}</div><p class="muted small">Rollback: ${esc(a.rollback)}</p></li>`).join('')}</ul>` : '<p class="empty">No action chosen yet.</p>'}
+        <h3>Verification</h3>
+        ${cur.verification.length ? `<ul class="ver">${cur.verification.map(v => `<li>${pill(v.ok ? 'Passed' : 'Failed', v.ok ? 'ok' : 'crit')}<span>Re-run ${v.n} of 3</span><span class="mono muted">${v.ok ? v.ms + ' ms' : esc(v.note)}</span></li>`).join('')}</ul>` : '<p class="empty" style="margin-top:6px">The affected journey is re-run after each recovery.</p>'}
+      </div>
+    </div></div>`;
+  }
+  return `<section class="view">${head('Incidents', 'Evidence, decisions and recovery for every incident.')}<div class="split"><div class="card list">${list}</div>${detail}</div></section>`;
+}
+function pJourneys() {
+  return `<section class="view">${head('Journeys', 'Synthetic transactions that run every few seconds. A failing step names the service to investigate.')}
+  <div class="grid cols-2">${S.journeys.map(j => `<article class="card"><div class="card-h"><h2>${j.name}</h2>${pill(jLabel(j), jTone(j))}</div>
+    <p class="muted small">${j.via}, last run <span class="mono">${j.lastRun}</span></p>
+    <ol class="jsteps">${j.steps.map(s => `<li class="${s.ok === false ? 'bad' : s.ok === null ? 'skip' : ''}"><span class="si"></span><span class="sn">${esc(s.name)}<small>${esc(s.svc)}</small></span><span class="mono ms">${s.ok === null ? 'skipped' : s.ok ? s.ms + ' ms' : 'timeout'}</span></li>`).join('')}</ol>
+    <div class="jfoot">${spark(j.history, 200, 38, jTone(j))}<button class="btn" data-act="probe" data-arg="${j.id}">Run now</button></div></article>`).join('')}</div></section>`;
+}
+function pEdge() {
+  const n = S.node;
+  const payload = n.online ? JSON.stringify({ node: n.id, uptime_s: n.uptime, temp_c: +n.temp.toFixed(1), rssi_dbm: n.rssi, fan_rpm: n.fan, fault: n.mode === 'overheat' ? 'FAN_STALL' : null }, null, 2) : `// no message for ${n.hb.toFixed(0)} s\n// last known: ${n.temp.toFixed(1)} °C`;
+  const hot = n.temp > n.limit;
+  return `<section class="view">${head('Edge node', `${n.model} reporting temperature, uptime and link quality. Checkout confirmation depends on its heartbeat.`, `<span class="pill ${n.online ? 'ok' : 'crit'}"><i class="dot"></i>${n.online ? 'Online' : 'Offline'}</span>`)}
+  <div class="grid kpis">
+    <div class="kpi"><span class="k">Temperature</span><span class="v mono" style="${hot ? 'color:var(--crit)' : ''}">${n.temp.toFixed(1)} °C</span><span class="s">${n.online ? 'Limit ' + n.limit + ' °C' : 'Last known value'}</span></div>
+    <div class="kpi"><span class="k">Uptime</span><span class="v mono">${dur(n.uptime)}</span><span class="s">Since last reboot</span></div>
+    <div class="kpi"><span class="k">Signal</span><span class="v mono">${n.online ? n.rssi + ' dBm' : '—'}</span><span class="s">Wi-Fi RSSI</span></div>
+    <div class="kpi"><span class="k">Last heartbeat</span><span class="v mono" style="${n.hb > 5 ? 'color:var(--crit)' : ''}">${n.hb.toFixed(1)} s</span><span class="s">Expected every 2 s</span></div>
+    <div class="kpi"><span class="k">Fan</span><span class="v mono">${n.online ? n.fan + ' RPM' : '—'}</span><span class="s">${n.fan === 0 ? 'Stalled' : 'Spinning'}</span></div>
+  </div>
+  <div class="grid cols-2">
+    <div class="card"><h2 style="margin-bottom:10px">Temperature, last 60 s</h2>${tchart(n.tempHist, n.limit)}</div>
+    <div class="card"><h2 style="margin-bottom:10px">Telemetry message</h2><pre class="code">${esc(payload)}</pre><p class="muted small" style="margin-bottom:12px">Topic <span class="mono">loopwatch/${n.id}/telemetry</span>, every 2 s</p>
+      <div class="btns"><button class="btn" data-act="run" data-arg="overheat"${S.active ? ' disabled' : ''}>${ic('thermo', 14)}Overheat</button><button class="btn" data-act="run" data-arg="link"${S.active ? ' disabled' : ''}>${ic('wifi', 14)}Drop link</button><button class="btn" data-act="reset">${ic('refresh', 14)}Restore node</button></div></div>
+  </div></section>`;
+}
+function pPolicies() {
+  return `<section class="view">${head('Policies', 'What the agent may do on its own. Changes apply to the next incident and are saved in this browser.')}
+  <div class="card ctrl">
+    <label class="switch-row"><span><strong>Pause autonomous actions</strong><small>Every action waits for a person, whatever its mode.</small></span><span class="switch"><input id="kill" type="checkbox" data-chg="kill"${P.killSwitch ? ' checked' : ''}><i></i></span></label>
+    <label class="switch-row"><span><strong>Action budget per incident</strong><small>After this many actions the incident escalates.</small></span><input id="budget" class="num-in mono" type="number" min="1" max="6" value="${P.budget}" data-chg="budget"></label>
+  </div>
+  <div class="card scroll"><table class="tbl"><thead><tr><th>Action</th><th>Risk</th><th>Mode</th><th>Rollback plan</th></tr></thead><tbody>
+    ${Object.entries(ACTIONS).map(([k, d]) => `<tr><td><strong>${d.name}</strong><div class="muted small mono">${k}</div></td><td>${pill(d.risk, riskTone(d.risk))}</td><td><select id="mode-${k}" data-chg="mode" data-key="${k}" aria-label="Mode for ${d.name}">${[['auto', 'Auto'], ['approval', 'Needs approval'], ['blocked', 'Blocked']].map(([v, l]) => `<option value="${v}"${P.modes[k] === v ? ' selected' : ''}>${l}</option>`).join('')}</select></td><td>${d.rollback}</td></tr>`).join('')}
+  </tbody></table></div>
+  <p class="hint">Try it: set "Restart simulated service" to Needs approval, then stall the order queue.</p></section>`;
+}
+function pAudit() {
+  const rows = S.audit.filter(e => S.auditFilter === 'all' || e.actor === S.auditFilter);
+  return `<section class="view">${head('Audit log', 'Every detection, decision, approval and action, with who did it. Saved in this browser.', `<button class="btn" data-act="clearAudit">Clear log</button>`)}
+  <div class="pills filters">${['all', 'detector', 'agent', 'policy', 'human', 'executor', 'verifier'].map(f => `<button class="pill${S.auditFilter === f ? ' acc' : ''}" data-act="filter" data-arg="${f}">${f}</button>`).join('')}</div>
+  <div class="card scroll"><table class="tbl"><thead><tr><th>Time</th><th>Actor</th><th>Incident</th><th>Event</th></tr></thead><tbody>
+    ${rows.length ? rows.map(e => `<tr><td class="mono nowrap">${fmtTs(e.ts)}</td><td>${pill(e.actor)}</td><td>${e.inc ? `<button class="link mono" data-act="openInc" data-arg="${e.inc}">${e.inc}</button>` : ''}</td><td>${esc(e.text)} ${e.demo ? pill('Sample') : ''}</td></tr>`).join('') : '<tr><td colspan="4" class="empty">No entries.</td></tr>'}
+  </tbody></table></div></section>`;
+}
+function pScore() {
+  const m = metrics(), cards = [['Detection latency', secs(m.detect), 'Fault injected to incident opened'], ['Root-cause accuracy', pct(m.rca), 'Top hypothesis matches the injected fault'], ['Recovery success', pct(m.rec), 'Journey verified healthy after recovery'], ['False-positive rate', pct(m.fp), 'Incidents opened with no real fault'], ['Mean time to resolve', secs(m.mttr), 'Fault injected to verified recovery']];
+  return `<section class="view">${head('Scorecard', 'Computed from every incident on this page: the sample history plus any runs you trigger.')}
+  <div class="grid kpis">${cards.map(c => `<div class="kpi"><span class="k">${c[0]}</span><span class="v mono">${c[1]}</span><span class="s">${c[2]}</span></div>`).join('')}</div>
+  <div class="card scroll"><h2 style="margin-bottom:8px">Incidents</h2><table class="tbl"><thead><tr><th>Incident</th><th>Title</th><th>Detected after</th><th>Root cause</th><th>Outcome</th><th>Time to resolve</th></tr></thead><tbody>
+  ${S.incidents.map(i => `<tr><td><button class="link mono" data-act="openInc" data-arg="${i.id}">${i.id}</button></td><td>${esc(i.title)} ${i.demo ? pill('Sample') : ''}</td><td class="mono">${secs(i.detectLatency)}</td><td>${i.rcaCorrect == null ? '—' : pill(i.rcaCorrect ? 'Correct' : 'Missed', i.rcaCorrect ? 'ok' : 'crit')}</td><td>${pill(stat(i.status)[0], stat(i.status)[1])}</td><td class="mono">${i.mttr != null ? secs(i.mttr) : '—'}</td></tr>`).join('')}
+  </tbody></table></div>
+  <div class="card"><h2 style="margin-bottom:6px">Baselines</h2><p class="muted">Not measured yet. Run the same fault scenarios with "alert only" and with "blind retry or restart", then add those results here to show what the agent adds.</p></div>
+  <p class="hint">Times use the simulator's clock, not wall time. Sample incidents are example history so the numbers are not empty.</p></section>`;
+}
+const NAV = [['overview', 'Overview', 'grid'], ['incidents', 'Incidents', 'alert'], ['journeys', 'Journeys', 'activity'], ['edge', 'Edge node', 'cpu'], ['policies', 'Policies', 'shield'], ['audit', 'Audit log', 'list'], ['score', 'Scorecard', 'bars']];
+const PAGES = { overview: pOverview, incidents: pIncidents, journeys: pJourneys, edge: pEdge, policies: pPolicies, audit: pAudit, score: pScore };
+function view() {
+  const oc = openCount();
+  return `<div class="app"><aside class="rail"><div class="brand">${LOGO}<span>Loopwatch</span></div>
+    <nav class="nav" aria-label="Pages">${NAV.map(([k, l, i]) => `<button data-act="go" data-arg="${k}" class="${S.view === k ? 'on' : ''}"${S.view === k ? ' aria-current="page"' : ''}>${ic(i)}<span>${l}</span>${k === 'incidents' && oc ? `<span class="count">${oc}</span>` : ''}</button>`).join('')}</nav>
+    <div class="rail-foot"><span class="pill"><i class="dot"></i>Simulator mode</span><p class="hint">No backend connected. Faults and agent steps are scripted in this page.</p></div></aside>
+    <main class="main">${PAGES[S.view]()}</main></div>
+    <div class="toasts" aria-live="polite">${S.toasts.map(t => `<button class="toast ${t.kind}" data-act="toast" data-arg="${esc(t.inc || '')}"><strong>${esc(t.title)}</strong><span>${esc(t.text)}</span></button>`).join('')}</div>`;
+}
+
+/* ---------- rendering: morph the live DOM so focus, clicks and scroll survive each tick ---------- */
+const root = document.getElementById('app');
+function morphKids(a, b) {
+  const ac = Array.from(a.childNodes), bc = Array.from(b.childNodes), n = Math.max(ac.length, bc.length);
+  for (let i = 0; i < n; i++) { if (!ac[i]) a.appendChild(bc[i]); else if (!bc[i]) a.removeChild(ac[i]); else morph(ac[i], bc[i]); }
+}
+function morph(a, b) {
+  if (a.nodeType !== b.nodeType || a.nodeName !== b.nodeName) { a.replaceWith(b); return; }
+  if (a.nodeType !== 1) { if (a.nodeValue !== b.nodeValue) a.nodeValue = b.nodeValue; return; }
+  for (const at of Array.from(a.attributes)) if (!b.hasAttribute(at.name)) a.removeAttribute(at.name);
+  for (const at of Array.from(b.attributes)) if (a.getAttribute(at.name) !== at.value) a.setAttribute(at.name, at.value);
+  const tag = a.nodeName;
+  if (tag === 'INPUT') { if (a.type === 'checkbox') a.checked = b.hasAttribute('checked'); else if (document.activeElement !== a) a.value = b.getAttribute('value') || ''; }
+  morphKids(a, b);
+  if (tag === 'SELECT' && document.activeElement !== a) { const s = b.querySelector('option[selected]'); if (s) a.value = s.getAttribute('value'); }
+}
+function render() { const b = document.createElement('div'); b.innerHTML = view(); morphKids(root, b); }
+function invalidate() { if (queued) return; queued = true; requestAnimationFrame(() => { queued = false; render(); }); }
+
+/* ---------- events ---------- */
+const go = k => { S.view = k; window.scrollTo(0, 0); invalidate(); };
+const openInc = id => { S.sel = id; S.view = 'incidents'; window.scrollTo(0, 0); invalidate(); };
+const ACT = {
+  go, openInc, run, reset,
+  decide: a => decide(a === 'yes'),
+  selInc: id => { S.sel = id; invalidate(); },
+  toggleTrace: () => { S.traceOpen = !S.traceOpen; invalidate(); },
+  probe: id => { const j = J(id); probe(j); feed('info', `Manual run of "${j.name}": ${jLabel(j).toLowerCase()}`); },
+  filter: f => { S.auditFilter = f; invalidate(); },
+  clearAudit: () => { S.audit.length = 0; lsSet('loopwatch.audit', S.audit); invalidate(); },
+  toast: id => { if (id) openInc(id); }
+};
+const CHG = {
+  pace: t => { S.pace = +t.value; invalidate(); },
+  kill: t => { P.killSwitch = t.checked; savePolicy(); log('human', 'Autonomous actions ' + (P.killSwitch ? 'paused' : 'resumed')); },
+  budget: t => { P.budget = Math.min(6, Math.max(1, parseInt(t.value, 10) || 1)); savePolicy(); log('human', 'Action budget set to ' + P.budget); },
+  mode: t => { P.modes[t.dataset.key] = t.value; savePolicy(); log('human', `${ACTIONS[t.dataset.key].name} set to ${t.value}`); }
+};
+document.addEventListener('click', e => { const t = e.target.closest('[data-act]'); if (!t || t.disabled) return; const f = ACT[t.dataset.act]; if (f) f(t.dataset.arg); });
+document.addEventListener('change', e => { const t = e.target.closest('[data-chg]'); if (t && CHG[t.dataset.chg]) CHG[t.dataset.chg](t); });
+
+render();
+</script>
+
+</body>
+</html>

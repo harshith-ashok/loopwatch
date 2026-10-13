@@ -13,7 +13,7 @@ function Trigger() {
 }
 
 describe("Toast", () => {
-  it("renders an incident link inside the router without crashing (regression)", () => {
+  it("renders inside the router and navigates without crashing (regression)", () => {
     render(
       <MemoryRouter>
         <ToastProvider>
@@ -22,6 +22,6 @@ describe("Toast", () => {
       </MemoryRouter>,
     );
     act(() => screen.getByText("fire").click());
-    expect(screen.getByRole("link", { name: "Open incident" })).toHaveAttribute("href", "/incidents/7");
+    expect(screen.getByRole("button", { name: /Incident opened/ })).toBeInTheDocument();
   });
 });

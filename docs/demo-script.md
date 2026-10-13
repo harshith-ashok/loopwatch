@@ -1,5 +1,9 @@
 # Demo script (about 3 minutes)
 
+Timing: the defaults are a demo profile. From a click, an incident opens in about 2 s (stall,
+timeout), 5 s (link) or 6 s (overheat), and the whole loop closes in roughly 4 to 9 s. The spec
+thresholds (10 s overheat hold, 2 s heartbeat) are pinned in the test suite.
+
 Setup: backend and frontend running, `LOOPWATCH_DEMO_DATA=true` so history is not empty, pace
 on **Normal**, all journeys green on the Overview.
 

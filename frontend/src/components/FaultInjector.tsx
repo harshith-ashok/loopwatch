@@ -1,64 +1,88 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiGet, apiPost, apiPut } from "../lib/api";
 import type { PolicyView } from "../lib/types";
+import { Icon, type IconName } from "./Icon";
+import { useToast } from "./toast-context";
 
-const SCENARIOS = [
-  { key: "stall", label: "Order worker stalls" },
-  { key: "timeout", label: "Payment gateway times out" },
-  { key: "overheat", label: "Edge node overheats" },
-  { key: "link", label: "Edge node loses Wi-Fi" },
-] as const;
+export interface Armed {
+  label: string;
+  at: number;
+  afterIncidentId: number;
+}
 
-/** Demo controls. The system must notice and recover on its own; these only break things. */
-export function FaultInjector() {
+const SCENARIOS: { key: string; icon: IconName; label: string; sub: string }[] = [
+  { key: "stall", icon: "server", label: "Stall the order queue", sub: "Payment captured, order never confirms" },
+  { key: "timeout", icon: "zap", label: "Break the checkout API", sub: "Intermittent upstream timeouts" },
+  { key: "overheat", icon: "thermo", label: "Overheat the edge node", sub: "Fan stalls, temperature climbs past the limit" },
+  { key: "link", icon: "wifi", label: "Drop the edge node's Wi-Fi", sub: "Heartbeats stop, acknowledgements fail" },
+];
+
+/** Demo controls. The system has to notice and recover on its own; these only break things. */
+export function FaultInjector({ busy = false }: { busy?: boolean }) {
   const qc = useQueryClient();
+  const toast = useToast();
   const policy = useQuery({ queryKey: ["policy"], queryFn: () => apiGet<PolicyView>("/policy") });
   const refresh = () => {
-    for (const k of ["incidents", "overview", "audit", "edge", "journeys"]) void qc.invalidateQueries({ queryKey: [k] });
+    for (const k of ["incidents", "overview", "audit", "edge", "journeys", "score"]) void qc.invalidateQueries({ queryKey: [k] });
   };
-  const inject = useMutation({ mutationFn: (path: string) => apiPost(path), onSuccess: refresh });
+  // Respond on the click, not on the server round trip: mark the fault as armed straight away so
+  // the console shows it is watching, then confirm when the POST returns.
+  const inject = useMutation({
+    mutationFn: (v: { path: string; label: string }) => apiPost(v.path),
+    onMutate: (v) => {
+      const isReset = v.path.endsWith("/reset");
+      if (isReset) {
+        qc.setQueryData(["armed"], null);
+        return;
+      }
+      const ids = (qc.getQueryData<{ id: number }[]>(["incidents"]) ?? []).map((i) => i.id);
+      const armed: Armed = { label: v.label, at: Date.now(), afterIncidentId: Math.max(0, ...ids) };
+      qc.setQueryData(["armed"], armed);
+      toast({ title: "Fault injected", body: `${v.label}. Watching for it…`, tone: "warn" });
+    },
+    onError: () => qc.setQueryData(["armed"], null),
+    onSuccess: refresh,
+  });
   const setPace = useMutation({
     mutationFn: (pace: string) => apiPut<PolicyView>("/policy", { pace }),
     onSuccess: (data) => qc.setQueryData(["policy"], data),
   });
-  const btn = "rounded-md border border-border px-3 py-1.5 text-sm hover:bg-surface-2 disabled:opacity-60";
+  const disabled = busy;
 
   return (
-    <section aria-labelledby="inject-h" className="rounded-lg border border-border bg-surface p-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 id="inject-h" className="font-semibold">
-          Break something
-        </h2>
-        <label className="flex items-center gap-2 text-sm text-muted">
+    <div className="card">
+      <h2 style={{ marginBottom: 12 }}>Fault injector</h2>
+      <div className="inj">
+        {SCENARIOS.map((s) => (
+          <button key={s.key} type="button" className="inj-btn" disabled={disabled} onClick={() => inject.mutate({ path: `/faults/${s.key}`, label: s.label })}>
+            <Icon name={s.icon} size={18} />
+            <span>
+              <strong>{s.label}</strong>
+              <small>{s.sub}</small>
+            </span>
+          </button>
+        ))}
+      </div>
+      <div className="inj-foot">
+        <label>
           Pace
-          <select
-            value={policy.data?.pace ?? "normal"}
-            onChange={(e) => setPace.mutate(e.target.value)}
-            disabled={!policy.data}
-            className="rounded-md border border-border bg-surface px-2 py-1 text-text"
-          >
+          <select value={policy.data?.pace ?? "normal"} disabled={!policy.data} onChange={(e) => setPace.mutate(e.target.value)}>
             {(policy.data?.pace_options ?? ["normal"]).map((p) => (
               <option key={p} value={p}>
-                {p}
+                {p[0].toUpperCase() + p.slice(1)}
               </option>
             ))}
           </select>
         </label>
-      </div>
-      <div className="mt-3 flex flex-wrap gap-2">
-        {SCENARIOS.map((s) => (
-          <button key={s.key} type="button" className={btn} disabled={inject.isPending}
-            onClick={() => inject.mutate(`/faults/${s.key}`)}>
-            {s.label}
-          </button>
-        ))}
-        <button type="button" className={`${btn} font-medium`} disabled={inject.isPending}
-          onClick={() => inject.mutate("/faults/reset")}>
-          Reset everything
+        <button type="button" className="btn" onClick={() => inject.mutate({ path: "/faults/reset", label: "Reset" })}>
+          <Icon name="refresh" size={14} />
+          Reset system
         </button>
       </div>
-      {inject.isError && <p className="mt-2 text-sm text-crit">That did not work. Check the backend.</p>}
-      <p className="mt-3 text-xs text-muted">Pace only changes how long stages pause on screen. It does not change results.</p>
-    </section>
+      {inject.isError && <p className="small err" style={{ marginTop: 8 }}>That did not work. Check the backend.</p>}
+      <p className="hint" style={{ marginTop: 10 }}>
+        Faults are injected into the simulated shop and edge node. Pace only changes how long stages pause on screen.
+      </p>
+    </div>
   );
 }

@@ -34,7 +34,19 @@ def summary(i: Incident, session: Session) -> IncidentSummary:
     pend = session.scalar(
         select(Action).where(Action.incident_id == i.id, Action.state == "awaiting_approval").limit(1)
     )
+    failed_stage = None
+    if i.state == "escalated":
+        verified_bad = session.scalar(
+            select(Verification.id).where(Verification.incident_id == i.id, Verification.passed.is_(False)).limit(1)
+        )
+        stopped = session.scalar(
+            select(Action.id)
+            .where(Action.incident_id == i.id, Action.state.in_(["denied", "blocked", "skipped"]))
+            .limit(1)
+        )
+        failed_stage = "verify" if verified_bad else "decide" if stopped else "investigate"
     return IncidentSummary(
+        failed_stage=failed_stage,
         is_demo=i.is_demo,
         top_cause=top,
         pending_action=None

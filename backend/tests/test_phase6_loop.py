@@ -103,3 +103,17 @@ async def test_escalated_fault_does_not_reopen_until_reset(client) -> None:
     client.post("/api/v1/faults/reset")
     second = await open_incident(client, "overheat")
     assert second != first
+
+
+async def test_resolved_incident_whose_fault_persists_does_not_flap(client) -> None:
+    """A resolved incident must not spawn a new one a second later for the same signal."""
+    from app.detector.engine import _handle
+    from app.detector.rules import Signal
+
+    client.put("/api/v1/policy", json={"pace": "fast"})
+    first = await open_incident(client, "stall")
+    await handle_incident(first)
+    assert state_of(first) == "resolved"
+    with get_sessionmaker()() as s:
+        assert _handle(s, Signal("step_failure", "confirm", "again"), "order") is None  # suppressed
+    assert [i.id for i in incidents()] == [first]

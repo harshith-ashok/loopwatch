@@ -13,7 +13,6 @@ from app.schemas.edge import TelemetryMessage
 
 MODES = ("normal", "overheat", "dropping", "offline")
 BOOT_TICKS = 2  # messages skipped while rebooting after a power cycle
-DROP_TICKS_BEFORE_OFFLINE = 3
 
 
 class EdgeSimulator:
@@ -78,7 +77,7 @@ class EdgeSimulator:
             self._drop_ticks += 1
             self.fan_rpm = round(4200 + n(-60, 60))
             self.temp_c += (41.2 - self.temp_c) * 0.5 + n(-0.3, 0.3)
-            if self._drop_ticks >= DROP_TICKS_BEFORE_OFFLINE:
+            if self._drop_ticks >= cfg.edge_sim_drop_ticks:
                 self.mode = "offline"  # the last degraded message is still delivered
         else:  # normal
             self.fan_rpm = min(4200, self.fan_rpm + 1400) if self.fan_rpm < 4000 else round(4200 + n(-60, 60))

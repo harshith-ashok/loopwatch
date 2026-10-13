@@ -100,4 +100,4 @@ def test_list_shape_has_no_child_collections(client) -> None:
     with get_sessionmaker()() as s:
         make_incident(s)
     row = client.get("/api/v1/incidents").json()[0]
-    assert set(row) == {"id", "title", "journey", "state", "stage", "rule", "signals", "opened_at", "closed_at", "is_demo", "top_cause", "pending_action"}
+    assert set(row) == {"id", "title", "journey", "state", "stage", "failed_stage", "rule", "signals", "opened_at", "closed_at", "is_demo", "top_cause", "pending_action"}

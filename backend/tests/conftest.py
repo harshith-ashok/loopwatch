@@ -13,6 +13,12 @@ os.environ["LOOPWATCH_JOURNEY_ORDER_TIMEOUT_MS"] = "150"
 os.environ["LOOPWATCH_DETECTOR_STATE_CHECK_S"] = "1"
 os.environ["LOOPWATCH_EDGE_WATCH_ENABLED"] = "false"  # tests tick the simulator by hand
 os.environ["LOOPWATCH_SHOP_ACK_HOT_SLOW_MS"] = "40"
+# Pin the spec timings so the rule tests do not depend on the demo profile defaults.
+os.environ["LOOPWATCH_SHOP_TIMEOUT_ERROR_RATE"] = "0.22"
+os.environ["LOOPWATCH_EDGE_TICK_S"] = "2.0"
+os.environ["LOOPWATCH_EDGE_OVERHEAT_HOLD_S"] = "10"
+os.environ["LOOPWATCH_EDGE_SIM_HEAT_STEP_C"] = "6.0"
+os.environ["LOOPWATCH_EDGE_SIM_DROP_TICKS"] = "3"
 os.environ["LOOPWATCH_AGENTS_ENABLED"] = "false"  # tests call investigate() directly
 os.environ["LOOPWATCH_AGENTS_SLOW_GATEWAY_MS"] = "20"
 

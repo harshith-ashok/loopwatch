@@ -9,7 +9,7 @@ from app.models.ops import AppSetting
 from app.policy.catalog import load_catalog
 
 MODES = ("auto", "approval", "blocked")
-PACES = {"fast": 0.0, "normal": 1.0, "slow": 3.0}  # seconds of presentational dwell between stages
+PACES = {"fast": 0.0, "normal": 0.5, "slow": 2.0}  # seconds of presentational dwell between stages
 AGENT_MODES = ("loopwatch", "alert_only", "blind_remediation")
 KEY = "policy"
 

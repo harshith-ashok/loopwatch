@@ -47,3 +47,8 @@ def test_firmware_only_accepts_known_commands(monkeypatch) -> None:
 
 def test_firmware_file_compiles() -> None:
     compile(FIRMWARE.read_text(), str(FIRMWARE), "exec")
+
+
+def test_firmware_sends_nothing_by_default(monkeypatch) -> None:
+    fw = load_firmware(monkeypatch)
+    assert fw.SEND_TO_BACKEND is False

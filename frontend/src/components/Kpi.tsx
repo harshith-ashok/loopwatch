@@ -1,9 +1,24 @@
-export function Kpi({ label, value, hint }: { label: string; value: React.ReactNode; hint?: string }) {
+export function Kpi({
+  label,
+  value,
+  unit,
+  hint,
+  tone,
+}: {
+  label: string;
+  value: React.ReactNode;
+  unit?: string;
+  hint?: string;
+  tone?: "crit";
+}) {
   return (
-    <div className="rounded-lg border border-border bg-surface p-4">
-      <div className="text-xs uppercase tracking-wide text-muted">{label}</div>
-      <div className="mt-1 font-mono text-3xl font-semibold">{value}</div>
-      {hint && <div className="mt-1 text-xs text-muted">{hint}</div>}
+    <div className="kpi">
+      <span className="k">{label}</span>
+      <span className={`v mono${tone ? ` ${tone}` : ""}`}>
+        {value}
+        {unit && <small>{unit}</small>}
+      </span>
+      {hint && <span className="s">{hint}</span>}
     </div>
   );
 }

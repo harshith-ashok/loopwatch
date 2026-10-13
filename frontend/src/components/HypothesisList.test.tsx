@@ -7,16 +7,15 @@ describe("HypothesisList", () => {
     expect(screen.getByRole("status")).toHaveTextContent(/collecting evidence/);
   });
 
-  it("shows confidence and evidence chips with +/- signs, not color alone", () => {
+  it("shows confidence and labelled evidence chips, with the top one selected", () => {
     render(
       <HypothesisList
-        hypotheses={[
-          { rank: 1, cause: "Order worker stalled", cause_key: "worker_stalled", confidence: 0.86, supporting: ["E2"], weakening: ["E5"] },
-        ]}
+        hypotheses={[{ rank: 1, cause: "Order worker stalled", cause_key: "worker_stalled", confidence: 0.86, supporting: ["E2"], weakening: ["E5"] }]}
       />,
     );
     expect(screen.getByRole("progressbar", { name: /Order worker stalled/ })).toHaveAttribute("aria-valuenow", "86");
-    expect(screen.getByText("+ E2")).toBeInTheDocument();
-    expect(screen.getByText("− E5")).toBeInTheDocument();
+    expect(screen.getByText("E2 supports")).toBeInTheDocument();
+    expect(screen.getByText("E5 weakens")).toBeInTheDocument();
+    expect(screen.getByText("Selected")).toBeInTheDocument();
   });
 });

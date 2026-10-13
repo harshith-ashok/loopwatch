@@ -130,6 +130,10 @@ async def proceed(incident_id: int) -> None:
         outcome = await verify(session, incident_id, inc.journey, cause)
         if inc.state in TERMINAL_STATES:  # cancelled while verifying
             return
+        if outcome.passed:
+            # Flap guard: if the fault is still there the same signal will fire again within
+            # seconds. Do not open a fresh incident for it until the cooldown passes.
+            suppress_reopen(inc.dedupe_key, inc.rule)
         if outcome.passed and outcome.cleared_root:
             transition(session, inc, "resolved", "verifier", "journey passed 3 times in a row")
         elif outcome.passed:

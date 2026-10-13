@@ -1,51 +1,37 @@
 import type { EdgeSample } from "../lib/types";
 
-interface Props {
-  samples: EdgeSample[];
-  limit: number;
-  windowS?: number;
-}
+const W = 560;
+const H = 170;
+const L = 34;
+const R = 10;
+const T = 10;
+const B = 22;
+const LO = 20;
+const HI = 90;
 
-const W = 600;
-const H = 180;
-const PAD = { l: 36, r: 8, t: 8, b: 20 };
-
-/** 60 s temperature line with a dashed limit line. Over-limit points get a ring, not only color. */
-export function TempChart({ samples, limit, windowS = 60 }: Props) {
-  if (samples.length === 0) {
-    return <p className="text-sm text-muted">No telemetry in the last {windowS} s.</p>;
-  }
-  const maxT = Math.max(limit + 10, ...samples.map((s) => s.temp_c)) + 2;
-  const minT = Math.min(30, ...samples.map((s) => s.temp_c)) - 2;
-  const x = (ago: number) => PAD.l + ((windowS - ago) / windowS) * (W - PAD.l - PAD.r);
-  const y = (t: number) => PAD.t + (1 - (t - minT) / (maxT - minT)) * (H - PAD.t - PAD.b);
-  const points = samples.map((s) => `${x(s.ago_s)},${y(s.temp_c)}`).join(" ");
-  const summary = `Temperature over the last ${windowS} seconds, latest ${samples[samples.length - 1].temp_c.toFixed(1)} degrees, limit ${limit}`;
-
+/** Temperature line with gridlines and a dashed limit, as in the reference. */
+export function TempChart({ samples, limit, windowS = 60 }: { samples: EdgeSample[]; limit: number; windowS?: number }) {
+  if (samples.length === 0) return <p className="empty">No telemetry in the last {windowS} s.</p>;
+  const clamp = (t: number) => Math.min(HI, Math.max(LO, t));
+  const y = (t: number) => T + ((HI - clamp(t)) / (HI - LO)) * (H - T - B);
+  const x = (ago: number) => L + ((windowS - Math.min(windowS, ago)) / windowS) * (W - L - R);
+  const pts = samples.map((s) => `${x(s.ago_s).toFixed(1)},${y(s.temp_c).toFixed(1)}`).join(" ");
+  const last = samples[samples.length - 1];
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={summary} className="w-full">
-      <line x1={PAD.l} x2={W - PAD.r} y1={y(limit)} y2={y(limit)} stroke="var(--crit)" strokeDasharray="5 4" />
-      <text x={W - PAD.r} y={y(limit) - 4} textAnchor="end" fontSize="11" fill="var(--crit)">
-        limit {limit} °C
-      </text>
-      <polyline points={points} fill="none" stroke="var(--accent)" strokeWidth="2" />
-      {samples.map((s, i) =>
-        s.temp_c > limit ? (
-          <circle key={i} cx={x(s.ago_s)} cy={y(s.temp_c)} r="3.5" fill="none" stroke="var(--crit)" strokeWidth="1.5" />
-        ) : null,
-      )}
-      <text x={PAD.l - 4} y={y(maxT - 2) + 4} textAnchor="end" fontSize="11" fill="var(--muted)">
-        {Math.round(maxT - 2)}
-      </text>
-      <text x={PAD.l - 4} y={y(minT + 2) + 4} textAnchor="end" fontSize="11" fill="var(--muted)">
-        {Math.round(minT + 2)}
-      </text>
-      <text x={PAD.l} y={H - 4} fontSize="11" fill="var(--muted)">
-        −{windowS} s
-      </text>
-      <text x={W - PAD.r} y={H - 4} textAnchor="end" fontSize="11" fill="var(--muted)">
-        now
-      </text>
+    <svg className="tchart" viewBox={`0 0 ${W} ${H}`} role="img"
+      aria-label={`Temperature over the last ${windowS} seconds, latest ${last.temp_c.toFixed(1)} degrees, limit ${limit}`}>
+      {[20, 40, 60, 80].map((t) => (
+        <g key={t}>
+          <line x1={L} x2={W - R} y1={y(t)} y2={y(t)} className="gl" />
+          <text x={L - 6} y={y(t) + 4} textAnchor="end">{t}</text>
+        </g>
+      ))}
+      <line x1={L} x2={W - R} y1={y(limit)} y2={y(limit)} className="lim" />
+      <text x={L + 6} y={y(limit) - 5} className="limt">limit {limit} °C</text>
+      <polyline points={pts} className="ln" />
+      <circle cx={x(last.ago_s).toFixed(1)} cy={y(last.temp_c).toFixed(1)} r="3.5" className="dt" />
+      <text x={L} y={H - 5}>-{windowS} s</text>
+      <text x={W - R} y={H - 5} textAnchor="end">now</text>
     </svg>
   );
 }

@@ -4,7 +4,7 @@ export interface ToastInput {
   title: string;
   body?: string;
   to?: string;
-  tone?: "info" | "crit";
+  tone?: "ok" | "warn" | "crit";
 }
 
 export const ToastContext = createContext<(t: ToastInput) => void>(() => {});

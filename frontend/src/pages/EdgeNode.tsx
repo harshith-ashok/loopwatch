@@ -1,116 +1,86 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+import { Icon } from "../components/Icon";
 import { Kpi } from "../components/Kpi";
+import { PageHead } from "../components/PageHead";
 import { StatusPill } from "../components/StatusPill";
+import { useToast } from "../components/toast-context";
 import { TempChart } from "../components/TempChart";
 import { apiGet, apiPost } from "../lib/api";
+import { dur } from "../lib/format";
 import type { EdgeStatusView } from "../lib/types";
-
-const fmt = (v: number | null, unit = "", digits = 0) => (v === null ? "–" : `${v.toFixed(digits)}${unit}`);
-
-function uptime(s: number | null): string {
-  if (s === null) return "–";
-  const d = Math.floor(s / 86400);
-  const h = Math.floor((s % 86400) / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  return d > 0 ? `${d}d ${h}h` : h > 0 ? `${h}h ${m}m` : `${m}m ${s % 60}s`;
-}
 
 export default function EdgeNode() {
   const qc = useQueryClient();
-  const { data, isPending, isError } = useQuery({
+  const toast = useToast();
+  const { data: n, isPending, isError } = useQuery({
     queryKey: ["edge", "status"],
     queryFn: () => apiGet<EdgeStatusView>("/edge/status"),
-    refetchInterval: 5_000, // SSE edge.telemetry also invalidates this, polling is the safety net
+    refetchInterval: 5_000,
   });
-
-  // Heartbeat age keeps counting between messages.
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, []);
-
   const inject = useMutation({
     mutationFn: (path: string) => apiPost(path),
+    onMutate: (path) => {
+      if (!path.endsWith("/reset")) toast({ title: "Fault injected", body: "Watching for it…", tone: "warn" });
+    },
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["edge"] });
-      void qc.invalidateQueries({ queryKey: ["incidents"] });
-      void qc.invalidateQueries({ queryKey: ["overview"] });
+      for (const k of ["edge", "incidents", "overview"]) void qc.invalidateQueries({ queryKey: [k] });
     },
   });
 
-  if (isPending) return <p className="text-muted">Loading edge node…</p>;
-  if (isError || !data) return <p className="text-crit">Could not load the edge node. Is the backend running?</p>;
+  if (isPending) return <p className="empty">Loading edge node…</p>;
+  if (isError || !n) return <p className="err" role="alert">Could not load the edge node. Is the backend running?</p>;
 
-  const age = data.last_seen ? Math.max(0, (now - new Date(data.last_seen).getTime()) / 1000) : null;
-  const hot = data.temp_c !== null && data.temp_c > data.temp_limit_c;
-  const btn = "rounded-md border border-border px-3 py-1.5 text-sm hover:bg-surface-2 disabled:opacity-60";
+  const age = n.last_seen ? Math.max(0, (now - new Date(n.last_seen).getTime()) / 1000) : null;
+  const hot = n.temp_c !== null && n.temp_c > n.temp_limit_c;
+  const payload = n.latest
+    ? JSON.stringify(n.latest, null, 2)
+    : `// no message received yet`;
 
   return (
-    <div className="space-y-6">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold">Edge node</h1>
-          <p className="mt-1 font-mono text-sm text-muted">{data.node}</p>
-        </div>
-        {!data.seen ? (
-          <StatusPill status="neutral">Never reported</StatusPill>
-        ) : data.online ? (
-          <StatusPill status="ok">Online</StatusPill>
-        ) : (
-          <StatusPill status="crit">Offline</StatusPill>
-        )}
-      </header>
-
-      <div className="grid grid-cols-2 gap-4 min-[900px]:grid-cols-5">
-        <Kpi
-          label="Temperature"
-          value={fmt(data.temp_c, " °C", 1)}
-          hint={hot ? `▲ Above ${data.temp_limit_c} °C limit` : `Limit ${data.temp_limit_c} °C`}
-        />
-        <Kpi label="Uptime" value={uptime(data.uptime_s)} />
-        <Kpi label="Signal" value={fmt(data.rssi_dbm, " dBm")} />
-        <Kpi label="Heartbeat age" value={age === null ? "–" : `${age.toFixed(0)} s`} hint="Offline after 3 missed (6 s)" />
-        <Kpi label="Fan" value={fmt(data.fan_rpm, " rpm")} hint={data.fan_rpm === 0 ? "✕ Stalled" : undefined} />
+    <section className="view">
+      <PageHead title="Edge node"
+        sub={`${n.node} reporting temperature, uptime and link quality. Order acknowledgement depends on its heartbeat.`}
+        right={n.seen ? <StatusPill status={n.online ? "ok" : "crit"} dot>{n.online ? "Online" : "Offline"}</StatusPill> : <StatusPill dot>Never reported</StatusPill>} />
+      <div className="grid kpis">
+        <Kpi label="Temperature" value={n.temp_c !== null ? `${n.temp_c.toFixed(1)} °C` : "—"} tone={hot ? "crit" : undefined}
+          hint={n.online ? `Limit ${n.temp_limit_c} °C` : "Last known value"} />
+        <Kpi label="Uptime" value={dur(n.uptime_s)} hint="Since last reboot" />
+        <Kpi label="Signal" value={n.online && n.rssi_dbm !== null ? `${n.rssi_dbm} dBm` : "—"} hint="Wi-Fi RSSI" />
+        <Kpi label="Last heartbeat" value={age === null ? "—" : `${age.toFixed(1)} s`} tone={age !== null && age > 5 ? "crit" : undefined}
+          hint="Expected every 2 s" />
+        <Kpi label="Fan" value={n.online && n.fan_rpm !== null ? `${n.fan_rpm} RPM` : "—"} hint={n.fan_rpm === 0 ? "Stalled" : "Spinning"} />
       </div>
-
-      <section aria-labelledby="temp-h" className="rounded-lg border border-border bg-surface p-4">
-        <h2 id="temp-h" className="mb-2 font-semibold">
-          Temperature, last 60 s
-        </h2>
-        <TempChart samples={data.history} limit={data.temp_limit_c} />
-      </section>
-
-      <section aria-labelledby="inject-h" className="rounded-lg border border-border bg-surface p-4">
-        <h2 id="inject-h" className="font-semibold">
-          Simulated faults
-        </h2>
-        <p className="mt-1 text-sm text-muted">
-          The node is simulated. These switches change what it reports; the system has to notice on its own.
-        </p>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <button type="button" className={btn} disabled={inject.isPending} onClick={() => inject.mutate("/faults/overheat")}>
-            Overheat
-          </button>
-          <button type="button" className={btn} disabled={inject.isPending} onClick={() => inject.mutate("/faults/link")}>
-            Drop link
-          </button>
-          <button type="button" className={btn} disabled={inject.isPending} onClick={() => inject.mutate("/faults/reset")}>
-            Restore
-          </button>
+      <div className="grid cols-2">
+        <div className="card">
+          <h2 style={{ marginBottom: 10 }}>Temperature, last 60 s</h2>
+          <TempChart samples={n.history} limit={n.temp_limit_c} />
         </div>
-        {inject.isError && <p className="mt-2 text-sm text-crit">That did not work. Check the backend.</p>}
-      </section>
-
-      <section aria-labelledby="payload-h" className="rounded-lg border border-border bg-surface p-4">
-        <h2 id="payload-h" className="font-semibold">
-          Latest message
-        </h2>
-        <pre className="mt-2 overflow-x-auto font-mono text-sm text-muted">
-          {data.latest ? JSON.stringify(data.latest, null, 2) : "No message received yet."}
-        </pre>
-      </section>
-    </div>
+        <div className="card">
+          <h2 style={{ marginBottom: 10 }}>Telemetry message</h2>
+          <pre className="code">{payload}</pre>
+          <p className="muted small" style={{ marginBottom: 12 }}>
+            <span className="mono">POST /api/v1/edge/telemetry</span>, every 2 s
+          </p>
+          <div className="btns">
+            <button type="button" className="btn" onClick={() => inject.mutate("/faults/overheat")}>
+              <Icon name="thermo" size={14} />Overheat
+            </button>
+            <button type="button" className="btn" onClick={() => inject.mutate("/faults/link")}>
+              <Icon name="wifi" size={14} />Drop link
+            </button>
+            <button type="button" className="btn" onClick={() => inject.mutate("/faults/reset")}>
+              <Icon name="refresh" size={14} />Restore node
+            </button>
+          </div>
+          {inject.isError && <p className="small err" style={{ marginTop: 8 }}>That did not work. Check the backend.</p>}
+        </div>
+      </div>
+    </section>
   );
 }
