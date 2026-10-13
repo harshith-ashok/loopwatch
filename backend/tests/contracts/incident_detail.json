@@ -1,0 +1,30 @@
+{
+  "id": 1,
+  "title": "Order confirmation: 'Order confirmed' failed: order still 'paid' after 3000 ms",
+  "journey": "order",
+  "state": "awaiting_approval",
+  "stage": "decide",
+  "rule": "step_failure",
+  "signals": {"count": 3, "first_summary": "x", "rules_seen": ["step_failure"]},
+  "opened_at": "2026-10-13T06:30:00+00:00",
+  "closed_at": null,
+  "is_demo": false,
+  "top_cause": "worker_stalled",
+  "pending_action": {"id": 1, "type": "restart_service", "target": "order-worker", "risk": "medium", "rollback": "Redeploy previous revision"},
+  "timeline": [
+    {"id": 1, "ts": "2026-10-13T06:30:00+00:00", "actor": "detector", "action": "incident_opened", "detail": {"rule": "step_failure"}}
+  ],
+  "evidence": [
+    {"ref": "E1", "tool": "detector.signal", "args": {"rule": "step_failure"}, "result": {"summary": "x"}, "created_at": "2026-10-13T06:30:00+00:00"}
+  ],
+  "hypotheses": [
+    {"rank": 1, "cause": "Order worker stalled",
+      "cause_key": "worker_stalled", "confidence": 0.9, "supporting": ["E1"], "weakening": []}
+  ],
+  "actions": [
+    {"id": 1, "type": "restart_service", "target": "order-worker", "risk": "medium", "mode": "auto", "state": "proposed", "rollback": "Redeploy previous revision", "created_at": "2026-10-13T06:30:05+00:00", "approved_by": null}
+  ],
+  "verifications": [
+    {"run_number": 1, "passed": true, "ms": 180, "created_at": "2026-10-13T06:30:10+00:00"}
+  ]
+}
