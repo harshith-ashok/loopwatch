@@ -1,0 +1,8 @@
+{
+  "node": "fulfillment-hub-01",
+  "uptime_s": 518400,
+  "temp_c": 41.2,
+  "rssi_dbm": -58,
+  "fan_rpm": 4200,
+  "fault": null
+}
